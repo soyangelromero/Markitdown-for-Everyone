@@ -22,7 +22,7 @@ A graphical desktop application for converting files (PDF, images, documents) to
 ### 1. Clone the repository
 
 ```bash
-git clone <your-repository>
+git clone markitdown-pollinations
 cd markitdown-pollinations
 ```
 
