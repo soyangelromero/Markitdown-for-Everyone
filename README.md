@@ -22,8 +22,8 @@ A graphical desktop application for converting files (PDF, images, documents) to
 ### 1. Clone the repository
 
 ```bash
-git clone markitdown-pollinations
-cd markitdown-pollinations
+git clone https://github.com/soyangelromero/markitdown_pollinations.git
+cd markitdown_pollinations
 ```
 
 ### 2. Create a virtual environment

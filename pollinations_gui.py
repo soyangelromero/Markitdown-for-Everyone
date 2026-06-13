@@ -210,11 +210,12 @@ class MarkItDownApp:
         self.input_path = StringVar()
         self.output_path = StringVar()
 
-        # Prompt for configuration if missing or incomplete
+        # Build UI first
+        self._build_ui()
+
+        # Then prompt for configuration if missing or incomplete
         if not self.config.get("api_key"):
             self._open_config()
-
-        self._build_ui()
 
     def _build_ui(self):
         # --- Title ---
