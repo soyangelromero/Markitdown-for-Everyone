@@ -19,6 +19,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Virtual environment
 .venv/
@@ -49,13 +52,22 @@ desktop.ini
 # Logs
 *.log
 
-# Test files
-test_*.py
-test_*.png
-test_*.pdf
+# Test files (only in repo root, not in tests/ directory)
+/test_*.py
+/test_*.png
+/test_*.pdf
 output.md
 
 # Temporary files
 *.tmp
 *.bak
 *.old
+
+# OpenCode internals (plans, evidence, session data)
+.sisyphus/
+
+# Tool caches
+.ruff_cache/
+
+# Editable install metadata
+src/*.egg-info/
