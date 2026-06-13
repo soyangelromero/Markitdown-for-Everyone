@@ -1,0 +1,29 @@
+[project]
+name = "markitdown-pollinations"
+version = "0.2.0"
+description = "Graphical interface for converting files to Markdown using Pollinations API"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "markitdown[all]>=0.1.6",
+    "openai>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+pollinations-gui = "markitdown_pollinations.gui:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

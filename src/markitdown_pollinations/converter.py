@@ -1,0 +1,158 @@
+"""File conversion using MarkItDown + Pollinations API."""
+
+from __future__ import annotations
+
+import threading
+from dataclasses import dataclass
+from pathlib import Path
+
+from markitdown import (
+    FileConversionException,
+    MarkItDown,
+    MissingDependencyException,
+    UnsupportedFormatException,
+)
+from openai import (
+    APIConnectionError,
+    APIError,
+    APIStatusError,
+    APITimeoutError,
+    AuthenticationError,
+    NotFoundError,
+    PermissionDeniedError,
+    RateLimitError,
+)
+
+from markitdown_pollinations.pollinations_client import create_client
+
+
+@dataclass
+class ConversionResult:
+    """Result of a conversion attempt."""
+
+    success: bool
+    cancelled: bool = False
+    message: str = ""
+    warning: str = ""
+    output_path: str | None = None
+
+
+def convert_file(
+    input_file: str,
+    output_file: str,
+    api_key: str,
+    model: str,
+    cancel_event: threading.Event | None = None,
+) -> ConversionResult:
+    """
+    Convert ``input_file`` to Markdown and write it to ``output_file``.
+
+    Args:
+        input_file: Path to the file to convert.
+        output_file: Path where the Markdown output will be written.
+        api_key: Pollinations API key.
+        model: Model name to use for vision/image descriptions.
+        cancel_event: Optional event to signal cancellation.
+
+    Returns:
+        ConversionResult describing the outcome.
+    """
+    if cancel_event is not None and cancel_event.is_set():
+        return ConversionResult(success=False, cancelled=True, message="Conversion cancelled.")
+
+    try:
+        client = create_client(api_key)
+        md = MarkItDown(
+            llm_client=client,
+            llm_model=model,
+            llm_prompt="Describe this image in detail, including any text, objects, and context.",
+        )
+
+        if cancel_event is not None and cancel_event.is_set():
+            return ConversionResult(success=False, cancelled=True, message="Conversion cancelled.")
+
+        result = md.convert(input_file)
+
+        if cancel_event is not None and cancel_event.is_set():
+            return ConversionResult(success=False, cancelled=True, message="Conversion cancelled.")
+
+        content = result.markdown
+
+        if not content:
+            warning = "Conversion succeeded but produced no content."
+        else:
+            warning = ""
+
+        try:
+            Path(output_file).write_text(content, encoding="utf-8")
+        except (IOError, OSError) as e:
+            return ConversionResult(
+                success=False,
+                message=f"Could not write output file: {e}",
+            )
+
+        return ConversionResult(
+            success=True,
+            output_path=output_file,
+            warning=warning,
+        )
+
+    except (AuthenticationError, PermissionDeniedError):
+        return ConversionResult(
+            success=False,
+            message="Invalid API key. Get your key at https://enter.pollinations.ai",
+        )
+
+    except (APIConnectionError, APITimeoutError):
+        return ConversionResult(
+            success=False,
+            message="Connection error. Please check your internet connection.",
+        )
+
+    except NotFoundError:
+        return ConversionResult(
+            success=False,
+            message=f"Model '{model}' not found.",
+        )
+
+    except RateLimitError as e:
+        return ConversionResult(
+            success=False,
+            message=f"Rate limit exceeded: {e}",
+        )
+
+    except APIStatusError as e:
+        return ConversionResult(
+            success=False,
+            message=f"API error ({e.status_code}): {e}",
+        )
+
+    except APIError as e:
+        return ConversionResult(
+            success=False,
+            message=f"API error: {e}",
+        )
+
+    except UnsupportedFormatException:
+        return ConversionResult(
+            success=False,
+            message=f"Unsupported file format: {Path(input_file).suffix}",
+        )
+
+    except FileConversionException as e:
+        return ConversionResult(
+            success=False,
+            message=f"Conversion failed: {e}",
+        )
+
+    except MissingDependencyException as e:
+        return ConversionResult(
+            success=False,
+            message=f"Missing dependency: {e}",
+        )
+
+    except Exception as e:  # noqa: BLE001 - last-resort safety net
+        return ConversionResult(
+            success=False,
+            message=f"Unexpected error: {e}",
+        )
