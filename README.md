@@ -1,6 +1,6 @@
 ﻿# Markitdown-for-everyone
 
-A simple command-line tool by **Angel Romero** ([github.com/soyangelromero](https://github.com/soyangelromero)) that converts PDFs, images, documents, and other files into Markdown using the Pollinations API.
+A simple command-line tool that converts PDFs, images, documents, and other files into Markdown using the Pollinations API.
 
 ## What it does
 
