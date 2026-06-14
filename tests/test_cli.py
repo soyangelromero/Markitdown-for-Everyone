@@ -71,11 +71,10 @@ def test_quick_convert_missing_api_key(mock_load_config, temp_file):
 
 
 @patch("builtins.input")
-@patch("markitdown_pollinations.cli.validate_model")
 @patch("markitdown_pollinations.cli.save_config")
 @patch("markitdown_pollinations.cli.load_config")
 def test_setup_wizard_first_run(
-    mock_load_config, mock_save_config, mock_validate_model, mock_input
+    mock_load_config, mock_save_config, mock_input
 ):
     mock_load_config.return_value = {
         "api_key": "",
@@ -87,7 +86,6 @@ def test_setup_wizard_first_run(
         "1",  # text model -> openai
         "1",  # vision model -> openai
     ]
-    mock_validate_model.return_value = (True, "")
     mock_save_config.return_value = True
 
     # Open configure explicitly; since config is empty, wizard runs
@@ -100,11 +98,10 @@ def test_setup_wizard_first_run(
 
 
 @patch("builtins.input")
-@patch("markitdown_pollinations.cli.validate_model")
 @patch("markitdown_pollinations.cli.save_config")
 @patch("markitdown_pollinations.cli.load_config")
 def test_configure_menu_updates_settings(
-    mock_load_config, mock_save_config, mock_validate_model, mock_input
+    mock_load_config, mock_save_config, mock_input
 ):
     mock_load_config.return_value = {
         "api_key": "old-key",
@@ -116,7 +113,6 @@ def test_configure_menu_updates_settings(
         "1",  # text model -> openai
         "2",  # vision model -> openai-large
     ]
-    mock_validate_model.return_value = (True, "")
     mock_save_config.return_value = True
 
     code = main(["--configure"])
