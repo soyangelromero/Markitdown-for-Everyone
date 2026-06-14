@@ -10,12 +10,17 @@ from typing import TypedDict
 class Config(TypedDict):
     """Configuration type hint."""
     api_key: str
-    model: str
+    text_model: str
+    vision_model: str
 
 
 CONFIG_FILE = Path(__file__).resolve().parents[2] / "config.json"
 
-DEFAULT_CONFIG: Config = {"api_key": "", "model": "openai"}
+DEFAULT_CONFIG: Config = {
+    "api_key": "",
+    "text_model": "openai",
+    "vision_model": "openai",
+}
 
 
 def load_config() -> Config:

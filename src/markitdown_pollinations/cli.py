@@ -8,8 +8,13 @@ import sys
 from pathlib import Path
 
 from markitdown_pollinations import __version__
-from markitdown_pollinations.config import load_config, save_config
-from markitdown_pollinations.constants import IMAGE_EXTENSIONS, VISION_MODELS
+from markitdown_pollinations.config import Config, load_config, save_config
+from markitdown_pollinations.constants import (
+    IMAGE_EXTENSIONS,
+    RECOMMENDED_TEXT_MODELS,
+    RECOMMENDED_VISION_MODELS,
+    VISION_MODELS,
+)
 from markitdown_pollinations.converter import ConversionResult, convert_file
 from markitdown_pollinations.pollinations_client import validate_model
 
@@ -40,6 +45,7 @@ class Colors:
     GREEN = "\033[32m"
     YELLOW = "\033[33m"
     RED = "\033[31m"
+    MAGENTA = "\033[35m"
 
 
 def _color(text: str, color: str) -> str:
@@ -63,17 +69,232 @@ def print_banner() -> None:
     print(banner)
 
 
+def _prompt(text: str, default: str = "") -> str:
+    """Prompt the user for input and return a stripped value."""
+    prompt = f"{text} [{default}]: " if default else f"{text}: "
+    value = input(prompt).strip()
+    return value if value else default
+
+
+def _prompt_choice(options: list[str], prompt_text: str) -> str:
+    """Prompt the user to pick one of the listed options."""
+    print(_color(prompt_text, Colors.CYAN))
+    for idx, option in enumerate(options, start=1):
+        print(f"  {idx}. {option}")
+    while True:
+        choice = input("Elige una opción: ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(options):
+            return options[int(choice) - 1]
+        print(_color("Opción no válida. Intenta de nuevo.", Colors.YELLOW))
+
+
+def _model_for_file(config: Config, input_file: str) -> str:
+    """Choose the right model based on the file type."""
+    ext = Path(input_file).suffix.lower()
+    if ext in IMAGE_EXTENSIONS:
+        return config.get("vision_model", "openai")
+    return config.get("text_model", "openai")
+
+
+def _is_first_run(config: Config) -> bool:
+    """Return True if the user has not configured the app yet."""
+    return not config.get("api_key", "").strip()
+
+
+def _ask_model(prompt: str, recommendations: list[str], default: str) -> str:
+    """Ask the user to pick or type a model."""
+    print(_color(f"\n{prompt}", Colors.CYAN))
+    print("Recomendados:")
+    for idx, model in enumerate(recommendations, start=1):
+        marker = "*" if model == default else " "
+        print(f"  {idx}. {marker} {model}")
+    print("  0. Otro (escribir manualmente)")
+
+    while True:
+        choice = input("Selecciona: ").strip()
+        if choice == "0":
+            return _prompt("Escribe el nombre del modelo", default=default).strip() or default
+        if choice.isdigit() and 1 <= int(choice) <= len(recommendations):
+            return recommendations[int(choice) - 1]
+        print(_color("Opción no válida. Intenta de nuevo.", Colors.YELLOW))
+
+
+def setup_wizard(config: Config) -> Config:
+    """Run the first-time configuration wizard."""
+    print(_color("\n¡Bienvenido a Markitdown-for-everyone!", Colors.GREEN))
+    print("Vamos a configurar el programa para que puedas empezar a convertir archivos.\n")
+
+    api_key = _prompt(
+        "Introduce tu API key de Pollinations",
+        default=config.get("api_key", ""),
+    ).strip()
+
+    text_model = _ask_model(
+        "Modelo para documentos de texto (PDF, Word, Excel, etc.)",
+        RECOMMENDED_TEXT_MODELS,
+        config.get("text_model", "openai"),
+    )
+
+    vision_model = _ask_model(
+        "Modelo para imágenes (JPG, PNG, etc.)",
+        RECOMMENDED_VISION_MODELS,
+        config.get("vision_model", "openai"),
+    )
+
+    new_config: Config = {
+        "api_key": api_key,
+        "text_model": text_model,
+        "vision_model": vision_model,
+    }
+
+    ok, msg = validate_model(api_key, text_model)
+    if not ok:
+        print(_color(f"\nNo se pudo validar el modelo de texto: {msg}", Colors.YELLOW))
+        print("Se guardará la configuración de todos modos.")
+
+    if save_config(new_config):
+        print(_color("\nConfiguración guardada correctamente.", Colors.GREEN))
+    else:
+        print(_color("\nError: no se pudo guardar la configuración.", Colors.RED))
+
+    return new_config
+
+
+def configure_menu(config: Config) -> Config:
+    """Show the configuration menu and update settings."""
+    print(_color("\n--- Configuración ---", Colors.CYAN))
+
+    api_key = _prompt(
+        "API key de Pollinations",
+        default=config.get("api_key", ""),
+    ).strip()
+
+    text_model = _ask_model(
+        "Modelo para documentos de texto",
+        RECOMMENDED_TEXT_MODELS,
+        config.get("text_model", "openai"),
+    )
+
+    vision_model = _ask_model(
+        "Modelo para imágenes",
+        RECOMMENDED_VISION_MODELS,
+        config.get("vision_model", "openai"),
+    )
+
+    new_config: Config = {
+        "api_key": api_key,
+        "text_model": text_model,
+        "vision_model": vision_model,
+    }
+
+    ok, msg = validate_model(api_key, text_model)
+    if not ok:
+        print(_color(f"\nNo se pudo validar el modelo de texto: {msg}", Colors.YELLOW))
+
+    if save_config(new_config):
+        print(_color("\nConfiguración actualizada.", Colors.GREEN))
+    else:
+        print(_color("\nError: no se pudo guardar la configuración.", Colors.RED))
+
+    return new_config
+
+
+def _ask_file(prompt: str) -> str:
+    """Prompt for a file path and validate that it exists."""
+    while True:
+        path = input(f"{prompt}: ").strip().strip('"')
+        if Path(path).is_file():
+            return path
+        print(_color(f"No se encontró el archivo: {path}", Colors.RED))
+
+
+def _ask_output(input_file: str) -> str:
+    """Prompt for an output path with a sensible default."""
+    default = str(Path(input_file).with_suffix(".md"))
+    path = _prompt("Archivo de salida", default=default).strip().strip('"')
+    return path or default
+
+
+def _run_conversion(input_file: str, output_file: str, api_key: str, model: str) -> int:
+    """Run a single conversion and print the result."""
+    ext = Path(input_file).suffix.lower()
+    if ext in IMAGE_EXTENSIONS and model not in VISION_MODELS:
+        print(
+            _color(
+                f"Advertencia: '{model}' no es un modelo de visión. "
+                "Las imágenes pueden no convertirse bien.",
+                Colors.YELLOW,
+            )
+        )
+
+    print(
+        f"\nConvirtiendo {_color(input_file, Colors.CYAN)} "
+        f"→ {_color(output_file, Colors.CYAN)} "
+        f"con modelo {_color(model, Colors.CYAN)}..."
+    )
+
+    result: ConversionResult = convert_file(input_file, output_file, api_key, model)
+
+    if result.cancelled:
+        print(_color("Conversión cancelada.", Colors.YELLOW))
+        return 130
+
+    if not result.success:
+        print(_color(f"Error: {result.message}", Colors.RED))
+        return 1
+
+    print(_color(f"Listo: {result.output_path}", Colors.GREEN))
+    if result.warning:
+        print(_color(f"Advertencia: {result.warning}", Colors.YELLOW))
+    return 0
+
+
+def convert_menu_option(config: Config, file_kind: str) -> int:
+    """Handle a conversion option from the main menu."""
+    print(_color(f"\n--- Convertir {file_kind} a Markdown ---", Colors.CYAN))
+    input_file = _ask_file("Ruta del archivo")
+    output_file = _ask_output(input_file)
+    model = _model_for_file(config, input_file)
+    return _run_conversion(input_file, output_file, config["api_key"], model)
+
+
+def show_menu(config: Config) -> int:
+    """Display the interactive menu and handle choices."""
+    while True:
+        print(_color("\n--- Menú ---", Colors.CYAN))
+        print("1. Convertir PDF a Markdown")
+        print("2. Convertir Imagen a Markdown")
+        print("3. Convertir Documento a Markdown")
+        print("4. Configurar API key y modelos")
+        print("5. Salir")
+
+        choice = input("\nElige una opción: ").strip()
+
+        if choice == "1":
+            convert_menu_option(config, "PDF")
+        elif choice == "2":
+            convert_menu_option(config, "Imagen")
+        elif choice == "3":
+            convert_menu_option(config, "Documento")
+        elif choice == "4":
+            config = configure_menu(config)
+        elif choice == "5":
+            print(_color("\n¡Hasta luego!", Colors.GREEN))
+            return 0
+        else:
+            print(_color("Opción no válida. Intenta de nuevo.", Colors.YELLOW))
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse command-line arguments."""
+    """Parse command-line arguments for quick conversion mode."""
     parser = argparse.ArgumentParser(
         prog="markitdown-for-everyone",
         description="Convert files to Markdown using the Pollinations API.",
     )
     parser.add_argument(
-        "-i",
-        "--input",
-        dest="input_file",
-        help="File to convert",
+        "input_file",
+        nargs="?",
+        help="File to convert (if omitted, the interactive menu opens)",
     )
     parser.add_argument(
         "-o",
@@ -91,62 +312,32 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "-m",
         "--model",
         dest="model",
-        help="Model to use (default: openai)",
+        help="Model to use (default: from config or openai)",
     )
     parser.add_argument(
         "--configure",
         action="store_true",
-        help="Save API key and model to config.json",
+        help="Open the configuration menu",
     )
     return parser.parse_args(argv)
 
 
-def _default_output(input_path: str) -> str:
-    """Generate default output path from input path."""
-    return str(Path(input_path).with_suffix(".md"))
-
-
-def _resolve_inputs(
-    args: argparse.Namespace,
-    config: dict,
-) -> tuple[str, str, str]:
-    """Resolve and validate API key, model, and input file."""
+def quick_convert(args: argparse.Namespace, config: Config) -> int:
+    """Run a quick conversion from command-line arguments."""
     api_key = (args.api_key or config.get("api_key", "")).strip()
-    model = (args.model or config.get("model", "openai")).strip()
-
-    if args.configure:
-        if not api_key:
-            print(_color("Error: API key is required to configure.", Colors.RED))
-            print("Usage: markitdown-for-everyone --configure -k YOUR_API_KEY [-m MODEL]")
-            sys.exit(1)
-        return api_key, model, ""
-
     if not api_key:
-        print(_color("Error: API key is required.", Colors.RED))
-        print("Run with --configure to save your key, or pass -k/--api-key.")
-        sys.exit(1)
-
-    if not args.input_file:
-        print(_color("Error: Input file is required.", Colors.RED))
-        print("Usage: markitdown-for-everyone -i INPUT_FILE [-o OUTPUT_FILE] [-m MODEL]")
-        sys.exit(1)
+        print(_color("Error: API key no configurada.", Colors.RED))
+        print("Ejecuta: python markitdown_for_everyone.py --configure")
+        return 1
 
     input_file = args.input_file
-    if not Path(input_file).is_file():
-        print(_color(f"Error: File not found: {input_file}", Colors.RED))
-        sys.exit(1)
+    if not input_file or not Path(input_file).is_file():
+        print(_color(f"Error: archivo no encontrado: {input_file}", Colors.RED))
+        return 1
 
-    ext = Path(input_file).suffix.lower()
-    if ext in IMAGE_EXTENSIONS and model not in VISION_MODELS:
-        print(
-            _color(
-                f"Warning: '{model}' is not a vision model. Image descriptions may fail. "
-                "Try one of: openai, gemini, claude, qwen-vision.",
-                Colors.YELLOW,
-            )
-        )
-
-    return api_key, model, input_file
+    model = (args.model or _model_for_file(config, input_file)).strip()
+    output_file = args.output_file or str(Path(input_file).with_suffix(".md"))
+    return _run_conversion(input_file, output_file, api_key, model)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -156,39 +347,21 @@ def main(argv: list[str] | None = None) -> int:
     print_banner()
 
     config = load_config()
-    api_key, model, input_file = _resolve_inputs(args, config)
 
     if args.configure:
-        ok, msg = validate_model(api_key, model)
-        if not ok:
-            print(_color(f"Configuration failed: {msg}", Colors.RED))
-            return 1
-        if save_config({"api_key": api_key, "model": model}):
-            print(_color("Configuration saved successfully.", Colors.GREEN))
-            return 0
-        return 1
+        if _is_first_run(config):
+            config = setup_wizard(config)
+        else:
+            config = configure_menu(config)
+        return 0
 
-    output_file = args.output_file or _default_output(input_file)
-    print(
-        f"Converting {_color(input_file, Colors.CYAN)} "
-        f"→ {_color(output_file, Colors.CYAN)} "
-        f"using model {_color(model, Colors.CYAN)}..."
-    )
+    if args.input_file:
+        return quick_convert(args, config)
 
-    result: ConversionResult = convert_file(input_file, output_file, api_key, model)
+    if _is_first_run(config):
+        config = setup_wizard(config)
 
-    if result.cancelled:
-        print(_color("Conversion cancelled.", Colors.YELLOW))
-        return 130
-
-    if not result.success:
-        print(_color(f"Error: {result.message}", Colors.RED))
-        return 1
-
-    print(_color(f"Done: {result.output_path}", Colors.GREEN))
-    if result.warning:
-        print(_color(f"Warning: {result.warning}", Colors.YELLOW))
-    return 0
+    return show_menu(config)
 
 
 if __name__ == "__main__":

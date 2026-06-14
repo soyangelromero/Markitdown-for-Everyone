@@ -6,7 +6,8 @@ A simple command-line tool by **Angel Romero** ([github.com/soyangelromero](http
 
 - Converts PDF, Word, PowerPoint, Excel, images, audio, HTML, CSV, JSON, XML, EPUB, and ZIP files to Markdown.
 - Describes images automatically when you use a vision-capable model.
-- Saves your API key and preferred model locally so you do not have to enter them every time.
+- Saves your API key and preferred models locally so you do not have to enter them every time.
+- Easy interactive menu: just run the program and pick an option.
 
 ## Requirements
 
@@ -32,23 +33,44 @@ pip install -r requirements.txt
 
 ## First run
 
-Configure your API key and default model once:
+Just run the program:
 
 ```bash
-python markitdown_for_everyone.py --configure -k YOUR_API_KEY -m openai
+python markitdown_for_everyone.py
 ```
 
-Your settings are saved to `config.json` and you will not need to pass them again.
+On the first run it will ask you for:
 
-## Usage
+1. Your Pollinations API key.
+2. A model for text documents (recommended: `openai`).
+3. A model for images (recommended: `openai`).
 
-Convert a file:
+Your choices are saved to `config.json` and you will not need to enter them again.
+
+## Using the menu
+
+After the first run, running the program shows a simple menu:
+
+```
+--- Menú ---
+1. Convertir PDF a Markdown
+2. Convertir Imagen a Markdown
+3. Convertir Documento a Markdown
+4. Configurar API key y modelos
+5. Salir
+```
+
+Pick a number, enter the file path, and the program does the rest.
+
+## Quick conversion (advanced)
+
+If you already know the file you want, you can convert it directly:
 
 ```bash
 python markitdown_for_everyone.py input.pdf
 ```
 
-Specify output and model:
+Specify output and model only when you need to:
 
 ```bash
 python markitdown_for_everyone.py input.pdf -o output.md -m openai
@@ -57,30 +79,36 @@ python markitdown_for_everyone.py input.pdf -o output.md -m openai
 ## Options
 
 ```
--i, --input FILE       File to convert (required)
+FILE                   File to convert (if omitted, the menu opens)
 -o, --output FILE      Output Markdown file (default: input.md)
 -k, --api-key KEY      Pollinations API key
--m, --model MODEL      Model to use (default: openai)
-    --configure        Save API key and model to config.json
+-m, --model MODEL      Model to use (default: from config)
+    --configure        Open the configuration menu
 -h, --help             Show help message
 ```
 
 ## Examples
 
 ```bash
-# Convert a PDF
+# Open the interactive menu
+python markitdown_for_everyone.py
+
+# Convert a PDF directly
 python markitdown_for_everyone.py report.pdf
 
-# Convert an image with a vision model
-python markitdown_for_everyone.py photo.png -m openai -o photo.md
+# Convert an image
+python markitdown_for_everyone.py photo.png -o photo.md
 
 # Override the saved API key for one run
 python markitdown_for_everyone.py notes.docx -k ANOTHER_KEY -o notes.md
+
+# Change settings
+python markitdown_for_everyone.py --configure
 ```
 
 ## Models
 
-For images, use one of these vision models:
+For images, the program suggests these vision models:
 
 - `openai` (recommended)
 - `openai-large`
@@ -88,7 +116,13 @@ For images, use one of these vision models:
 - `gemini`, `gemini-large`
 - `claude`, `claude-large`
 
-For text-only files, any Pollinations model works, such as `glm`, `openai-fast`, `mistral`, or `deepseek`.
+For text-only files, recommended models are:
+
+- `openai`
+- `glm`
+- `openai-fast`
+- `mistral`
+- `deepseek`
 
 ## Troubleshooting
 
@@ -114,9 +148,9 @@ pyproject.toml                   # Project metadata
 requirements.txt                 # Dependencies
 src/markitdown_pollinations/     # App code
 ├── __init__.py                  # Package metadata
-├── cli.py                       # Command-line interface
+├── cli.py                       # Command-line interface with menu
 ├── config.py                    # Settings load/save
-├── constants.py                 # API URL and vision models
+├── constants.py                 # API URL, vision models, and recommendations
 ├── converter.py                 # File conversion logic
 └── pollinations_client.py       # Pollinations API client
 tests/                           # pytest unit tests
