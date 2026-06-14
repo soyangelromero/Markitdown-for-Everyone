@@ -57,16 +57,28 @@ def _color(text: str, color: str) -> str:
 
 def print_banner() -> None:
     """Print the program banner."""
-    banner = f"""
-{_color("  __  __            _  _    _         _                  _    ", Colors.CYAN)}
-{_color(" |  \\/  | __ _ _ __| || |__| |_  ___ | |_ __ _ _ _  __ _| |___", Colors.CYAN)}
-{_color(" | |\\/| |/ _` | '_ \\ __ / _` |/ _ \\|  _/ _` | ' \\/ _` | (_-<", Colors.CYAN)}
-{_color(" |_|  |_|\\__,_| .__/|_||\\__,_|\\___/ \\__\\__,_|_||_\\__,_|_/__/", Colors.CYAN)}
-{_color("              |_|                                             ", Colors.CYAN)}
-  {_color("Markitdown-for-everyone", Colors.BOLD)} {__version__}
-  by {_color("Angel Romero", Colors.BOLD)} — https://github.com/soyangelromero
-"""
-    print(banner)
+    width = 62
+    line = "-" * width
+    title = "  Markitdown-for-everyone"
+    subtitle = "  Convert files to Markdown using Pollinations AI"
+    author = "  by Angel Romero - https://github.com/soyangelromero"
+    version_str = f"  v{__version__}"
+
+    print()
+    print(_color("+" + line + "+", Colors.CYAN))
+    print(_color("|" + " " * width + "|", Colors.CYAN))
+    print(
+        _color("|", Colors.CYAN)
+        + _color(title.ljust(width), Colors.BOLD + Colors.CYAN)
+        + _color("|", Colors.CYAN)
+    )
+    print(_color("|", Colors.CYAN) + subtitle.ljust(width) + _color("|", Colors.CYAN))
+    print(_color("|" + " " * width + "|", Colors.CYAN))
+    print(_color("|", Colors.CYAN) + author.ljust(width) + _color("|", Colors.CYAN))
+    print(_color("|", Colors.CYAN) + version_str.ljust(width) + _color("|", Colors.CYAN))
+    print(_color("|" + " " * width + "|", Colors.CYAN))
+    print(_color("+" + line + "+", Colors.CYAN))
+    print()
 
 
 def _prompt(text: str, default: str = "") -> str:
