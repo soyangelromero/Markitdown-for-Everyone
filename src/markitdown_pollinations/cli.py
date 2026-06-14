@@ -16,9 +16,6 @@ from markitdown_pollinations.constants import (
     VISION_MODELS,
 )
 from markitdown_pollinations.converter import ConversionResult, convert_file
-from markitdown_pollinations.pollinations_client import validate_model
-
-
 def _enable_ansi_windows() -> None:
     """Enable ANSI escape sequences on Windows terminals."""
     if os.name != "nt":
@@ -157,12 +154,6 @@ def setup_wizard(config: Config) -> Config:
         print(_color("\nConfiguration saved successfully.", Colors.GREEN))
     else:
         print(_color("\nError: could not save the configuration.", Colors.RED))
-        return new_config
-
-    ok, msg = validate_model(api_key, text_model)
-    if not ok:
-        print(_color(f"\nCould not validate the text model: {msg}", Colors.YELLOW))
-        print("The settings were saved, but you may need to fix them.")
 
     return new_config
 
@@ -196,14 +187,6 @@ def configure_menu(config: Config) -> Config:
 
     if save_config(new_config):
         print(_color("\nConfiguration updated.", Colors.GREEN))
-    else:
-        print(_color("\nError: could not save the configuration.", Colors.RED))
-        return new_config
-
-    ok, msg = validate_model(api_key, text_model)
-    if not ok:
-        print(_color(f"\nCould not validate the text model: {msg}", Colors.YELLOW))
-        print("The settings were saved, but you may need to fix them.")
     else:
         print(_color("\nError: could not save the configuration.", Colors.RED))
 
