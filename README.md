@@ -52,12 +52,12 @@ Your choices are saved to `config.json` and you will not need to enter them agai
 After the first run, running the program shows a simple menu:
 
 ```
---- Menú ---
-1. Convertir PDF a Markdown
-2. Convertir Imagen a Markdown
-3. Convertir Documento a Markdown
-4. Configurar API key y modelos
-5. Salir
+--- Menu ---
+1. Convert PDF to Markdown
+2. Convert Image to Markdown
+3. Convert Document to Markdown
+4. Configure API key and models
+5. Exit
 ```
 
 Pick a number, enter the file path, and the program does the rest.
