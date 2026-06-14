@@ -57,28 +57,17 @@ def _color(text: str, color: str) -> str:
 
 def print_banner() -> None:
     """Print the program banner."""
-    width = 62
-    line = "-" * width
-    title = "  Markitdown-for-everyone"
-    subtitle = "  Convert files to Markdown using Pollinations AI"
-    author = "  by Angel Romero - https://github.com/soyangelromero"
-    version_str = f"  v{__version__}"
-
-    print()
-    print(_color("+" + line + "+", Colors.CYAN))
-    print(_color("|" + " " * width + "|", Colors.CYAN))
-    print(
-        _color("|", Colors.CYAN)
-        + _color(title.ljust(width), Colors.BOLD + Colors.CYAN)
-        + _color("|", Colors.CYAN)
-    )
-    print(_color("|", Colors.CYAN) + subtitle.ljust(width) + _color("|", Colors.CYAN))
-    print(_color("|" + " " * width + "|", Colors.CYAN))
-    print(_color("|", Colors.CYAN) + author.ljust(width) + _color("|", Colors.CYAN))
-    print(_color("|", Colors.CYAN) + version_str.ljust(width) + _color("|", Colors.CYAN))
-    print(_color("|" + " " * width + "|", Colors.CYAN))
-    print(_color("+" + line + "+", Colors.CYAN))
-    print()
+    art = r"""
+   _____                __   .__  __      .___                              _____                      ___________
+  /     \ _____ _______|  | _|__|/  |_  __| _/______  _  ______           _/ ____\___________          \_   _____/__  __ ___________ ___.__. ____   ____   ____
+ /  \ /  \__  \_  __ \  |/ /  \   __\/ __ |/  _ \ \/ \/ /    \   ______ \   __\/  _ \_  __ \  ______  |    __)_\  \/ // __ \_  __ <   |  |/  _ \ /    \_/ __ \
+/    Y    \/ __ \|  | \/    <|  ||  | / /_/ (  <_> )     /   |  \ /_____/  |  | (  <_> )  | \/ /_____/  |        \   /\  ___/|  | \/\___  (  <_> )   |  \  ___/
+\____|__  (____  /__|  |__|_ \__||__| \____ |\____/ \/\_/|___|  /          |__|  \____/|__|            /_______  / \_/  \___  >__|   / ____|\____/|___|  /\___  >
+        \/     \/           \/             \/                 \/                                               \/           \/       \/                \/     \/
+"""
+    print(_color(art, Colors.CYAN))
+    print(f"  by {_color('Angel Romero', Colors.BOLD)} - https://github.com/soyangelromero")
+    print(f"  v{__version__}\n")
 
 
 def _prompt(text: str, default: str = "") -> str:
