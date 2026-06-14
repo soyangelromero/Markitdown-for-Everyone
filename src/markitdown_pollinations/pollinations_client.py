@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import threading
-from typing import Callable
-
 from openai import (
     APIConnectionError,
     APIError,
@@ -59,25 +56,3 @@ def validate_model(api_key: str, model_name: str) -> tuple[bool, str]:
     except Exception as e:  # noqa: BLE001 - last-resort safety net
         return False, f"Unexpected error validating model: {e}"
 
-
-class ModelValidationThread(threading.Thread):
-    """
-    Background thread for model validation.
-
-    Calls ``validate_model`` and invokes ``on_result`` with the outcome.
-    """
-
-    def __init__(
-        self,
-        api_key: str,
-        model_name: str,
-        on_result: Callable[[bool, str], None],
-    ) -> None:
-        super().__init__(daemon=True)
-        self.api_key = api_key
-        self.model_name = model_name
-        self.on_result = on_result
-
-    def run(self) -> None:
-        success, message = validate_model(self.api_key, self.model_name)
-        self.on_result(success, message)

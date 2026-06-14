@@ -1,3 +1,3 @@
-"""MarkItDown Pollinations GUI - Convert files to Markdown using Pollinations AI."""
+"""MarkItDown Pollinations CLI - Convert files to Markdown using Pollinations AI."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

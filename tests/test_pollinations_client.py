@@ -13,7 +13,6 @@ from openai import (
 )
 
 from markitdown_pollinations.pollinations_client import (
-    ModelValidationThread,
     create_client,
     validate_model,
 )
@@ -108,19 +107,3 @@ def test_validate_model_generic_api_error():
         assert ok is False
         assert "Error validating model" in msg
 
-
-def test_model_validation_thread_calls_callback():
-    results = []
-
-    def callback(ok, msg):
-        results.append((ok, msg))
-
-    with patch(
-        "markitdown_pollinations.pollinations_client.validate_model"
-    ) as mock_validate:
-        mock_validate.return_value = (True, "")
-        thread = ModelValidationThread("key", "openai", callback)
-        thread.start()
-        thread.join(timeout=2)
-
-    assert results == [(True, "")]

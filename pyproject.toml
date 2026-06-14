@@ -1,7 +1,7 @@
 [project]
-name = "markitdown-pollinations"
-version = "0.2.0"
-description = "Graphical interface for converting files to Markdown using Pollinations API"
+name = "markitdown-for-everyone"
+version = "0.3.0"
+description = "Command-line interface for converting files to Markdown using Pollinations API"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -15,7 +15,7 @@ dev = [
 ]
 
 [project.scripts]
-pollinations-gui = "markitdown_pollinations.gui:main"
+markitdown-for-everyone = "markitdown_pollinations.cli:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]
