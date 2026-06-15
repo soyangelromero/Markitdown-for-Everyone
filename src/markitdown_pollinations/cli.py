@@ -352,74 +352,27 @@ def _ask_model(prompt: str, recommendations: list[str], default: str) -> str:
         print(_color("Invalid option. Please try again.", Colors.YELLOW))
 
 
-def setup_wizard(config: Config) -> Config:
-    """Run the first-time configuration wizard."""
-    while True:
-        _clear_screen()
-        print_banner()
-        print(_color("\nWelcome to Markitdown-for-everyone!", Colors.GREEN))
-        print("Let's set up the program so you can start converting files.\n")
+def _configure_flow(
+    config: Config,
+    header: str,
+    welcome: str,
+    text_prompt: str,
+    vision_prompt: str,
+    success_message: str,
+) -> Config:
+    """Shared configuration flow used by the wizard and settings menu.
 
-        api_key = _prompt_for_api_key(config.get("api_key", ""))
-        if api_key == "__cancel__":
-            print(_color("\nSetup cancelled.", Colors.YELLOW))
-            return config
-        if api_key is None:
-            _pause("Press Enter to try again...")
-            continue
-
-        result = _validate_key_via_api(api_key)
-        if result == "valid":
-            break
-        if result == "invalid":
-            print(
-                _color(
-                    "Please provide a valid API key to continue.",
-                    Colors.YELLOW,
-                )
-            )
-        _pause("Press Enter to try again...")
-
-    text_model = _ask_model(
-        "Model for text documents (PDF, Word, Excel, etc.)",
-        RECOMMENDED_TEXT_MODELS,
-        config.get("text_model", "openai"),
-    )
-    if text_model == "__cancel__":
-        print(_color("\nSetup cancelled.", Colors.YELLOW))
-        return config
-
-    vision_model = _ask_model(
-        "Model for images (JPG, PNG, etc.)",
-        RECOMMENDED_VISION_MODELS,
-        config.get("vision_model", "openai"),
-    )
-    if vision_model == "__cancel__":
-        print(_color("\nSetup cancelled.", Colors.YELLOW))
-        return config
-
-    new_config: Config = {
-        "api_key": api_key,
-        "text_model": text_model,
-        "vision_model": vision_model,
-    }
-
-    if save_config(new_config):
-        print(_color("\nConfiguration saved successfully.", Colors.GREEN))
-    else:
-        print(_color("\nError: could not save the configuration.", Colors.RED))
-
-    return new_config
-
-
-def configure_menu(config: Config) -> Config:
-    """Show the configuration menu and update settings."""
+    Validates the API key, asks for text and vision models, and saves the
+    configuration. Returns the original config unchanged if the user cancels.
+    """
     original_config = config.copy()
 
     while True:
         _clear_screen()
         print_banner()
-        print(_color("\n--- Configuration ---", Colors.CYAN))
+        print(_color(f"\n{header}", Colors.CYAN))
+        if welcome:
+            print(_color(welcome, Colors.GREEN))
 
         api_key = _prompt_for_api_key(config.get("api_key", ""))
         if api_key == "__cancel__":
@@ -442,7 +395,7 @@ def configure_menu(config: Config) -> Config:
         _pause("Press Enter to try again...")
 
     text_model = _ask_model(
-        "Model for text documents",
+        text_prompt,
         RECOMMENDED_TEXT_MODELS,
         config.get("text_model", "openai"),
     )
@@ -451,7 +404,7 @@ def configure_menu(config: Config) -> Config:
         return original_config
 
     vision_model = _ask_model(
-        "Model for images",
+        vision_prompt,
         RECOMMENDED_VISION_MODELS,
         config.get("vision_model", "openai"),
     )
@@ -466,11 +419,35 @@ def configure_menu(config: Config) -> Config:
     }
 
     if save_config(new_config):
-        print(_color("\nConfiguration updated.", Colors.GREEN))
+        print(_color(f"\n{success_message}", Colors.GREEN))
     else:
         print(_color("\nError: could not save the configuration.", Colors.RED))
 
     return new_config
+
+
+def setup_wizard(config: Config) -> Config:
+    """Run the first-time configuration wizard."""
+    return _configure_flow(
+        config,
+        header="Welcome to Markitdown-for-everyone!",
+        welcome="Let's set up the program so you can start converting files.",
+        text_prompt="Model for text documents (PDF, Word, Excel, etc.)",
+        vision_prompt="Model for images (JPG, PNG, etc.)",
+        success_message="Configuration saved successfully.",
+    )
+
+
+def configure_menu(config: Config) -> Config:
+    """Show the configuration menu and update settings."""
+    return _configure_flow(
+        config,
+        header="--- Configuration ---",
+        welcome="",
+        text_prompt="Model for text documents",
+        vision_prompt="Model for images",
+        success_message="Configuration updated.",
+    )
 
 
 def _ask_file(prompt: str) -> str:
