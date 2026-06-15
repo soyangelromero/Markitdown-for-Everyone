@@ -16,6 +16,7 @@ from markitdown_pollinations.cli import (
     _confirm_overwrite,
     _is_cancel_input,
     _prompt_for_api_key,
+    _validate_key_via_api,
     main,
     parse_args,
 )
@@ -188,6 +189,73 @@ def test_menu_quit(mock_load_config, mock_clear, mock_input):
     code = main([])
 
     assert code == 0
+
+
+@patch("markitdown_pollinations.cli.load_config")
+def test_version_flag(mock_load_config, capsys):
+    """T5.1: --version exits 0 and prints the expected version string."""
+    mock_load_config.return_value = {
+        "api_key": "key",
+        "text_model": "openai",
+        "vision_model": "openai",
+    }
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--version"])
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "Markitdown-for-everyone 0.3.0" in captured.out
+
+
+@pytest.mark.parametrize("value", ["b", "back", "B", "BACK"])
+def test_is_cancel_input_detects_back_variants(value):
+    """T5.2: _is_cancel_input returns True for back/cancel shortcuts."""
+    assert _is_cancel_input(value) is True
+
+
+@patch("urllib.request.urlopen")
+@patch("markitdown_pollinations.cli.load_config")
+def test_validate_key_via_api_non_json_balance_response(
+    mock_load_config, mock_urlopen
+):
+    """T5.3: _validate_key_via_api handles non-JSON balance response gracefully."""
+    mock_load_config.return_value = {
+        "api_key": "key",
+        "text_model": "openai",
+        "vision_model": "openai",
+    }
+    # Balance endpoint returns non-JSON.
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b"not json at all"
+    mock_resp.status = 200
+    mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+    # Should not raise; falls through to chat-completion or returns "unknown".
+    result = _validate_key_via_api("sk-test-key")
+
+    # Should fall through without raising.
+    assert result in ("valid", "unknown")
+
+
+def test_no_unicode_arrow_in_cli_output(capsys):
+    """T5.4: No user-facing strings contain the Unicode arrow \\u2192."""
+    import markitdown_pollinations.cli as cli_module
+    import inspect
+
+    source = inspect.getsource(cli_module)
+    lines = source.splitlines()
+    violations = []
+    for lineno, line in enumerate(lines, start=1):
+        # Check lines that produce user-visible output.
+        if ("print(" in line or 'f"' in line or "f'" in line) and (
+            "\\u2192" in line or "→" in line
+        ):
+            violations.append(f"line {lineno}: {line.strip()}")
+
+    assert not violations, "Non-ASCII or \\u2192 found in cli.py:\n" + "\n".join(
+        violations
+    )
 
 
 @pytest.mark.parametrize("value", ["c", "C", "cancel", "CANCEL", "  Cancel  "])
