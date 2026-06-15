@@ -122,15 +122,17 @@ def convert_file(
         )
 
     except APIStatusError as e:
+        detail = getattr(e, "message", str(e)) or "Unknown API error"
         return ConversionResult(
             success=False,
-            message=f"API error ({e.status_code}): {e}",
+            message=f"API error ({e.status_code}): {detail}",
         )
 
     except APIError as e:
+        detail = getattr(e, "message", str(e)) or "Unknown API error"
         return ConversionResult(
             success=False,
-            message=f"API error: {e}",
+            message=f"API error: {detail}",
         )
 
     except UnsupportedFormatException:
