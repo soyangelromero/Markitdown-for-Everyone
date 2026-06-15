@@ -311,18 +311,6 @@ def _prompt(text: str, default: str = "") -> str:
     return value if value else default
 
 
-def _prompt_choice(options: list[str], prompt_text: str) -> str:
-    """Prompt the user to pick one of the listed options."""
-    print(_color(prompt_text, Colors.CYAN))
-    for idx, option in enumerate(options, start=1):
-        print(f"  {idx}. {option}")
-    while True:
-        choice = input("Choose an option: ").strip()
-        if choice.isdigit() and 1 <= int(choice) <= len(options):
-            return options[int(choice) - 1]
-        print(_color("Invalid option. Please try again.", Colors.YELLOW))
-
-
 def _model_for_file(config: Config, input_file: str) -> str:
     """Choose the right model based on the file type."""
     ext = Path(input_file).suffix.lower()
