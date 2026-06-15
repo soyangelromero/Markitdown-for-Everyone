@@ -448,10 +448,10 @@ def configure_menu(config: Config) -> Config:
 def _ask_file(prompt: str) -> str:
     """Prompt for a file path and validate that it exists.
 
-    Type 'c' or 'cancel' to abort this screen.
+    Type 'c', 'cancel', 'b', or 'back' to abort this screen.
     """
     while True:
-        path = input(f"{prompt} (or 'c' to cancel): ").strip().strip('"')
+        path = input(f"{prompt} (or 'c'/'b' to cancel/back): ").strip().strip('"')
         if _is_cancel_input(path):
             return "__cancel__"
         if Path(path).is_file():
@@ -462,7 +462,7 @@ def _ask_file(prompt: str) -> str:
 def _ask_output(input_file: str) -> str:
     """Prompt for an output path with a sensible default.
 
-    Type 'c' or 'cancel' to abort this screen.
+    Type 'c', 'cancel', 'b', or 'back' to abort this screen.
     """
     default = str(Path(input_file).with_suffix(".md"))
     path = _prompt("Output file", default=default).strip().strip('"')
