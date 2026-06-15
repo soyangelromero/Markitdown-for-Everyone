@@ -91,6 +91,18 @@ def test_load_config_ignores_empty_env_api_key(isolated_config, monkeypatch):
     }
 
 
+def test_load_config_fills_missing_keys_with_defaults(isolated_config):
+    """Test that load_config() merges loaded JSON with DEFAULT_CONFIG to fill missing keys."""
+    isolated_config.write_text(
+        '{"api_key": "pk_partial"}',
+        encoding="utf-8",
+    )
+    result = load_config()
+    assert result["api_key"] == "pk_partial"
+    assert result["text_model"] == "openai"
+    assert result["vision_model"] == "openai"
+
+
 def test_save_config_returns_false_on_write_error(isolated_config):
     with patch("builtins.open", mock_open()) as mocked:
         mocked.return_value.write.side_effect = OSError("permission denied")

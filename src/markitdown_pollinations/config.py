@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from typing import TypedDict
 
+from platformdirs import user_config_dir
+
 
 class Config(TypedDict):
     """Configuration type hint."""
@@ -15,7 +17,7 @@ class Config(TypedDict):
     vision_model: str
 
 
-CONFIG_FILE = Path(__file__).resolve().parents[2] / "config.json"
+CONFIG_FILE = Path(user_config_dir("markitdown-for-everyone", "AngelRomero")) / "config.json"
 
 DEFAULT_CONFIG: Config = {
     "api_key": "",
@@ -49,7 +51,8 @@ def load_config() -> Config:
             if not isinstance(config, dict):
                 print("Warning: Config file is not a dict, using defaults")
                 return DEFAULT_CONFIG.copy()
-            return config  # type: ignore[return-value]
+            merged = {**DEFAULT_CONFIG, **config}
+            return merged
     except json.JSONDecodeError as e:
         print(f"Warning: Config file contains invalid JSON: {e}")
         return DEFAULT_CONFIG.copy()
