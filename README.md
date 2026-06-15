@@ -201,6 +201,8 @@ Your API key is stored in plain text in `config.json` in the project root. That 
 
 To avoid storing the key on disk at all, use the `POLLINATIONS_API_KEY` environment variable. When this variable is set, the program uses it instead of any key saved in `config.json`.
 
+**Note:** Passing your API key via the `-k` / `--api-key` flag exposes it in the process list and shell history. Use the environment variable instead on shared or multi-user systems.
+
 Keep `config.json` private, and run `chmod 600 config.json` on Linux or macOS if you want to restrict access.
 
 ## License
