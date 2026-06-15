@@ -615,6 +615,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Open the configuration menu",
     )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"Markitdown-for-everyone {__version__}",
+    )
     return parser.parse_args(argv)
 
 
