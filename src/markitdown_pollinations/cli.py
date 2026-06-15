@@ -382,6 +382,7 @@ def _configure_flow(
             _pause("Press Enter to try again...")
             continue
 
+        print(_color("Validating API key...", Colors.CYAN))
         result = _validate_key_via_api(api_key)
         if result == "valid":
             break
@@ -476,6 +477,19 @@ def _ask_output(input_file: str) -> str:
     return path or default
 
 
+def _confirm_overwrite(path: str) -> bool:
+    """Ask the user before overwriting an existing file."""
+    if not Path(path).exists():
+        return True
+    answer = input(
+        _color(
+            f"'{path}' already exists. Overwrite? (y/N): ",
+            Colors.YELLOW,
+        )
+    ).strip().lower()
+    return answer in ("y", "yes")
+
+
 def _run_conversion(input_file: str, output_file: str, api_key: str, model: str) -> int:
     """Run a single conversion and print the result."""
     ext = Path(input_file).suffix.lower()
@@ -521,6 +535,9 @@ def convert_menu_option(config: Config, file_kind: str) -> int:
         return 0
     output_file = _ask_output(input_file)
     if output_file == "__cancel__":
+        print(_color("Cancelled.", Colors.YELLOW))
+        return 0
+    if not _confirm_overwrite(output_file):
         print(_color("Cancelled.", Colors.YELLOW))
         return 0
     model = _model_for_file(config, input_file)
@@ -626,6 +643,9 @@ def quick_convert(args: argparse.Namespace, config: Config) -> int:
 
     model = (args.model or _model_for_file(config, input_file)).strip()
     output_file = args.output_file or str(Path(input_file).with_suffix(".md"))
+    if not _confirm_overwrite(output_file):
+        print(_color("Conversion cancelled.", Colors.YELLOW))
+        return 0
     return _run_conversion(input_file, output_file, api_key, model)
 
 
