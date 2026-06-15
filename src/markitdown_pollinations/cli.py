@@ -608,26 +608,30 @@ def quick_convert(args: argparse.Namespace, config: Config) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point for the CLI."""
-    _enable_ansi_windows()
-    args = parse_args(argv)
-    print_banner()
+    try:
+        _enable_ansi_windows()
+        args = parse_args(argv)
+        print_banner()
 
-    config = load_config()
+        config = load_config()
 
-    if args.configure:
+        if args.configure:
+            if _is_first_run(config):
+                config = setup_wizard(config)
+            else:
+                config = configure_menu(config)
+            return 0
+
+        if args.input_file:
+            return quick_convert(args, config)
+
         if _is_first_run(config):
             config = setup_wizard(config)
-        else:
-            config = configure_menu(config)
-        return 0
 
-    if args.input_file:
-        return quick_convert(args, config)
-
-    if _is_first_run(config):
-        config = setup_wizard(config)
-
-    return show_menu(config)
+        return show_menu(config)
+    except KeyboardInterrupt:
+        print(_color("\nOperation cancelled by user.", Colors.YELLOW))
+        return 130
 
 
 if __name__ == "__main__":
