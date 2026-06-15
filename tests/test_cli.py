@@ -7,7 +7,18 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from markitdown_pollinations.cli import main, parse_args
+from markitdown_pollinations.cli import (
+    _ask_file,
+    _ask_model,
+    _ask_output,
+    _clear_screen,
+    _color,
+    _confirm_overwrite,
+    _is_cancel_input,
+    _prompt_for_api_key,
+    main,
+    parse_args,
+)
 
 
 @pytest.fixture
@@ -177,3 +188,126 @@ def test_menu_quit(mock_load_config, mock_clear, mock_input):
     code = main([])
 
     assert code == 0
+
+
+@pytest.mark.parametrize("value", ["c", "C", "cancel", "CANCEL", "  Cancel  "])
+def test_is_cancel_input_detects_cancel_variants(value):
+    assert _is_cancel_input(value) is True
+
+
+def test_is_cancel_input_rejects_regular_text():
+    assert _is_cancel_input("openai") is False
+    assert _is_cancel_input("") is False
+
+
+@patch("getpass.getpass")
+def test_prompt_for_api_key_returns_cancel_token(mock_getpass):
+    mock_getpass.return_value = "c"
+    assert _prompt_for_api_key("") == "__cancel__"
+
+
+@patch("getpass.getpass")
+def test_prompt_for_api_key_keeps_existing_key_on_empty_input(mock_getpass):
+    mock_getpass.return_value = ""
+    assert _prompt_for_api_key("sk-existing-key-123") == "sk-existing-key-123"
+
+
+@patch("builtins.input")
+def test_ask_file_returns_cancel_token(mock_input):
+    mock_input.return_value = "cancel"
+    assert _ask_file("File path") == "__cancel__"
+
+
+@patch("builtins.input")
+def test_ask_output_returns_cancel_token(mock_input):
+    mock_input.return_value = "c"
+    assert _ask_output("input.pdf") == "__cancel__"
+
+
+@patch("builtins.input")
+def test_ask_model_returns_cancel_token(mock_input):
+    mock_input.return_value = "c"
+    assert _ask_model("Pick a model", ["openai", "glm"], "openai") == "__cancel__"
+
+
+@patch("builtins.input")
+def test_confirm_overwrite_allows_existing_file_when_confirmed(mock_input, tmp_path):
+    existing = tmp_path / "out.md"
+    existing.write_text("old", encoding="utf-8")
+    mock_input.return_value = "y"
+    assert _confirm_overwrite(str(existing)) is True
+
+
+@patch("builtins.input")
+def test_confirm_overwrite_rejects_existing_file_by_default(mock_input, tmp_path):
+    existing = tmp_path / "out.md"
+    existing.write_text("old", encoding="utf-8")
+    mock_input.return_value = "n"
+    assert _confirm_overwrite(str(existing)) is False
+
+
+def test_confirm_overwrite_returns_true_for_missing_file(tmp_path):
+    missing = tmp_path / "does-not-exist.md"
+    assert _confirm_overwrite(str(missing)) is True
+
+
+def test_color_respects_no_color(monkeypatch):
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert _color("hello", "\033[31m") == "hello"
+
+
+def test_color_adds_ansi_when_no_color_not_set():
+    assert _color("hello", "\033[31m") == "\033[31mhello\033[0m"
+
+
+def test_clear_screen_respects_no_clear(monkeypatch, capsys):
+    monkeypatch.setenv("NO_CLEAR", "1")
+    _clear_screen()
+    captured = capsys.readouterr()
+    assert captured.out == ""
+
+
+def test_clear_screen_emits_ansi_escape_by_default(capsys):
+    _clear_screen()
+    captured = capsys.readouterr()
+    assert captured.out == "\033[2J\033[H"
+
+
+@patch("builtins.input")
+@patch("markitdown_pollinations.cli._clear_screen")
+@patch("markitdown_pollinations.cli.load_config")
+def test_main_handles_keyboard_interrupt_gracefully(
+    mock_load_config, mock_clear, mock_input
+):
+    mock_load_config.return_value = {
+        "api_key": "key",
+        "text_model": "openai",
+        "vision_model": "openai",
+    }
+    mock_input.side_effect = KeyboardInterrupt()
+
+    code = main([])
+
+    assert code == 130
+
+
+@patch("builtins.input")
+@patch("markitdown_pollinations.cli.convert_file")
+@patch("markitdown_pollinations.cli.load_config")
+def test_quick_convert_confirms_overwrite_and_cancels(
+    mock_load_config, mock_convert_file, mock_input, temp_file
+):
+    mock_load_config.return_value = {
+        "api_key": "key",
+        "text_model": "openai",
+        "vision_model": "openai",
+    }
+    # The first input answers the overwrite prompt (n), cancelling conversion.
+    mock_input.return_value = "n"
+    output_path = str(Path(temp_file).with_suffix(".md"))
+    Path(output_path).write_text("old", encoding="utf-8")
+
+    code = main([temp_file])
+
+    assert code == 0
+    mock_convert_file.assert_not_called()
