@@ -47,6 +47,21 @@ On the first run it will ask you for:
 
 Your choices are saved to `config.json` and you will not need to enter them again.
 
+If you prefer not to save your API key to disk, set the `POLLINATIONS_API_KEY` environment variable before running the program. The program uses that value instead of the key in `config.json`.
+
+```bash
+# Windows PowerShell
+$env:POLLINATIONS_API_KEY = "sk_..."
+
+# Windows CMD
+set POLLINATIONS_API_KEY=sk_...
+
+# macOS/Linux
+export POLLINATIONS_API_KEY=sk_...
+
+python markitdown_for_everyone.py
+```
+
 ## Using the menu
 
 After the first run, running the program shows a simple menu:
@@ -84,6 +99,7 @@ FILE                   File to convert (if omitted, the menu opens)
 -k, --api-key KEY      Pollinations API key
 -m, --model MODEL      Model to use (default: from config)
     --configure        Open the configuration menu
+    --version          Show version and exit
 -h, --help             Show help message
 ```
 
@@ -158,7 +174,11 @@ tests/                           # pytest unit tests
 
 ## Security note
 
-Your API key is stored in plain text in `config.json` in the project root. That file is already listed in `.gitignore`, so it will not be committed by accident. Keep it private, and run `chmod 600 config.json` on Linux or macOS if you want to restrict access.
+Your API key is stored in plain text in `config.json` in the project root. That file is already listed in `.gitignore`, so it will not be committed by accident. On Linux and macOS the program tries to set the file permissions to `600` (owner-only read/write) when it saves the configuration.
+
+To avoid storing the key on disk at all, use the `POLLINATIONS_API_KEY` environment variable. When this variable is set, the program uses it instead of any key saved in `config.json`.
+
+Keep `config.json` private, and run `chmod 600 config.json` on Linux or macOS if you want to restrict access.
 
 ## License
 
