@@ -266,13 +266,13 @@ def _is_cancel_input(value: str) -> bool:
 
 
 def _prompt_for_api_key(current_key: str) -> str | None:
-    """Prompt for an API key and enforce a plausible format.
+    """Prompt for an API key (warns on format, validates via network).
 
     The key is read without echoing characters. If the user presses Enter
     without typing anything, the existing key is kept. Type 'c', 'cancel',
-    'b', or 'back' to abort this screen. Returns the key if it looks valid,
+    'b', or 'back' to abort this screen. Returns the key if one was entered,
     '__cancel__' if the user cancelled, or None if the user entered an empty
-    or badly formatted key (after printing the relevant warning).
+    value when no existing key is available (after printing a warning).
     """
     if current_key:
         prompt = f"Pollinations API key [{_mask_key(current_key)}]: "
@@ -329,7 +329,7 @@ def _ask_model(prompt: str, recommendations: list[str], default: str) -> str:
         marker = "*" if model == default else " "
         print(f"  {idx}. {marker} {model}")
     print("  0. Other (type manually)")
-    print("  c. Cancel")
+    print("  c/b. Cancel/Back")
 
     while True:
         choice = input("Select: ").strip()
