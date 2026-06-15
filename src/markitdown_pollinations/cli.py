@@ -16,8 +16,15 @@ from markitdown_pollinations import __version__
 from markitdown_pollinations.config import Config, load_config, save_config
 from markitdown_pollinations.constants import (
     IMAGE_EXTENSIONS,
+    POLLINATIONS_BALANCE_URL,
+    POLLINATIONS_CHAT_URL,
     RECOMMENDED_TEXT_MODELS,
     RECOMMENDED_VISION_MODELS,
+    VALIDATION_MAX_TOKENS,
+    VALIDATION_MODEL,
+    VALIDATION_PROMPT,
+    VALIDATION_TIMEOUT_SECONDS,
+    VALIDATION_USER_AGENT,
     VISION_MODELS,
 )
 from markitdown_pollinations.converter import ConversionResult, convert_file
@@ -111,12 +118,6 @@ def _warn_if_key_invalid(api_key: str) -> None:
         )
 
 
-POLLINATIONS_BALANCE_URL = "https://gen.pollinations.ai/account/balance"
-POLLINATIONS_CHAT_URL = "https://gen.pollinations.ai/v1/chat/completions"
-VALIDATION_PROMPT = "hello"
-VALIDATION_MODEL = "openai"
-VALIDATION_MAX_TOKENS = 2
-
 _KeyValidationResult = Literal["valid", "invalid", "unknown"]
 
 
@@ -133,7 +134,7 @@ def _validate_key_via_api(api_key: str) -> _KeyValidationResult:
     """
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "User-Agent": "Markitdown-for-everyone/0.3.0",
+        "User-Agent": VALIDATION_USER_AGENT,
     }
 
     # 1. Try the free balance endpoint first.
@@ -143,7 +144,7 @@ def _validate_key_via_api(api_key: str) -> _KeyValidationResult:
             headers=headers,
             method="GET",
         )
-        with urllib.request.urlopen(req, timeout=10.0) as resp:
+        with urllib.request.urlopen(req, timeout=VALIDATION_TIMEOUT_SECONDS) as resp:
             body = resp.read().decode()
             data = json.loads(body)
             balance = data.get("balance")
@@ -197,7 +198,7 @@ def _validate_key_via_api(api_key: str) -> _KeyValidationResult:
             },
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=10.0) as resp:
+        with urllib.request.urlopen(req, timeout=VALIDATION_TIMEOUT_SECONDS) as resp:
             if resp.status == 200:
                 print(_color("API key verified successfully.", Colors.GREEN))
                 return "valid"

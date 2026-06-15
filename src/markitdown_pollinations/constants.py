@@ -26,3 +26,12 @@ RECOMMENDED_VISION_MODELS = [
     "claude",
     "claude-large",
 ]
+
+# Validation endpoints and parameters for API-key checks
+POLLINATIONS_BALANCE_URL = "https://gen.pollinations.ai/account/balance"
+POLLINATIONS_CHAT_URL = "https://gen.pollinations.ai/v1/chat/completions"
+VALIDATION_PROMPT = "hello"
+VALIDATION_MODEL = "openai"
+VALIDATION_MAX_TOKENS = 2
+VALIDATION_TIMEOUT_SECONDS = 10.0
+VALIDATION_USER_AGENT = "Markitdown-for-everyone/0.3.0"
