@@ -295,15 +295,6 @@ def _prompt_for_api_key(current_key: str) -> str | None:
         print(_color("An API key is required.", Colors.RED))
         return None
     _warn_if_key_invalid(api_key)
-    if not (api_key.startswith(("sk_", "sk-")) and len(api_key) >= 12):
-        print(
-            _color(
-                "Please enter a valid Pollinations API key "
-                "(starts with 'sk_' or 'sk-').",
-                Colors.YELLOW,
-            )
-        )
-        return None
     return api_key
 
 
