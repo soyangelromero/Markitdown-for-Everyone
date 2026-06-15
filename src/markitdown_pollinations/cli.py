@@ -9,6 +9,7 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Literal
 
 from markitdown_pollinations import __version__
 from markitdown_pollinations.config import Config, load_config, save_config
@@ -102,13 +103,19 @@ VALIDATION_PROMPT = "hello"
 VALIDATION_MODEL = "openai"
 VALIDATION_MAX_TOKENS = 2
 
+_KeyValidationResult = Literal["valid", "invalid", "unknown"]
 
-def _validate_key_via_api(api_key: str) -> bool:
+
+def _validate_key_via_api(api_key: str) -> _KeyValidationResult:
     """Validate the API key without consuming pollen if possible.
 
     First tries the free /account/balance endpoint. If that fails for reasons
     other than an invalid key, falls back to a tiny chat completion call
     ("hello" with max_tokens=2).
+
+    Returns:
+        "valid" if the key is accepted, "invalid" if the API rejects it, or
+        "unknown" when the check could not complete (e.g. network issue).
     """
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -135,7 +142,7 @@ def _validate_key_via_api(api_key: str) -> bool:
                 )
             else:
                 print(_color("API key is valid.", Colors.GREEN))
-            return True
+            return "valid"
 
     except urllib.error.HTTPError as e:
         body = e.read().decode()
@@ -147,12 +154,12 @@ def _validate_key_via_api(api_key: str) -> bool:
         if e.code == 401:
             print(
                 _color(
-                    "Warning: Invalid API key. "
+                    "Invalid API key. "
                     "Get your key at https://enter.pollinations.ai",
                     Colors.YELLOW,
                 )
             )
-            return False
+            return "invalid"
         # Any other error (403, 500, etc.) falls through to chat completion.
     except (urllib.error.URLError, TimeoutError, OSError):
         pass  # Network issue; fall through to chat completion.
@@ -179,11 +186,11 @@ def _validate_key_via_api(api_key: str) -> bool:
         with urllib.request.urlopen(req, timeout=10.0) as resp:
             if resp.status == 200:
                 print(_color("API key verified successfully.", Colors.GREEN))
-                return True
+                return "valid"
             body = resp.read().decode()
             msg = json.loads(body).get("error", {}).get("message", "Unknown error")
             print(_color(f"Warning: {msg}", Colors.YELLOW))
-            return False
+            return "unknown"
 
     except urllib.error.HTTPError as e:
         body = e.read().decode()
@@ -195,12 +202,13 @@ def _validate_key_via_api(api_key: str) -> bool:
         if e.code == 401:
             print(
                 _color(
-                    "Warning: Invalid API key. "
+                    "Invalid API key. "
                     "Get your key at https://enter.pollinations.ai",
                     Colors.YELLOW,
                 )
             )
-        elif e.code == 402:
+            return "invalid"
+        if e.code == 402:
             print(
                 _color(
                     "Warning: Insufficient pollen balance. "
@@ -208,9 +216,9 @@ def _validate_key_via_api(api_key: str) -> bool:
                     Colors.YELLOW,
                 )
             )
-        else:
-            print(_color(f"Warning: {msg}", Colors.YELLOW))
-        return False
+            return "valid"
+        print(_color(f"Warning: {msg}", Colors.YELLOW))
+        return "unknown"
 
     except (urllib.error.URLError, TimeoutError, OSError):
         print(
@@ -220,7 +228,29 @@ def _validate_key_via_api(api_key: str) -> bool:
                 Colors.YELLOW,
             )
         )
-        return False
+        return "unknown"
+
+
+def _prompt_for_api_key(current_key: str) -> str:
+    """Prompt for an API key and enforce a plausible format."""
+    while True:
+        api_key = _prompt(
+            "Pollinations API key",
+            default=current_key,
+        ).strip()
+        if not api_key:
+            print(_color("An API key is required.", Colors.RED))
+            continue
+        _warn_if_key_invalid(api_key)
+        if api_key.startswith(("sk_", "sk-")) and len(api_key) >= 12:
+            return api_key
+        print(
+            _color(
+                "Please enter a valid Pollinations API key "
+                "(starts with 'sk_' or 'sk-').",
+                Colors.YELLOW,
+            )
+        )
 
 
 def _prompt(text: str, default: str = "") -> str:
@@ -278,12 +308,17 @@ def setup_wizard(config: Config) -> Config:
     print(_color("\nWelcome to Markitdown-for-everyone!", Colors.GREEN))
     print("Let's set up the program so you can start converting files.\n")
 
-    api_key = _prompt(
-        "Enter your Pollinations API key",
-        default=config.get("api_key", ""),
-    ).strip()
-
-    _warn_if_key_invalid(api_key)
+    while True:
+        api_key = _prompt_for_api_key(config.get("api_key", ""))
+        result = _validate_key_via_api(api_key)
+        if result != "invalid":
+            break
+        print(
+            _color(
+                "Please provide a valid API key to continue.",
+                Colors.YELLOW,
+            )
+        )
 
     text_model = _ask_model(
         "Model for text documents (PDF, Word, Excel, etc.)",
@@ -305,7 +340,6 @@ def setup_wizard(config: Config) -> Config:
 
     if save_config(new_config):
         print(_color("\nConfiguration saved successfully.", Colors.GREEN))
-        _validate_key_via_api(api_key)
     else:
         print(_color("\nError: could not save the configuration.", Colors.RED))
 
@@ -316,12 +350,17 @@ def configure_menu(config: Config) -> Config:
     """Show the configuration menu and update settings."""
     print(_color("\n--- Configuration ---", Colors.CYAN))
 
-    api_key = _prompt(
-        "Pollinations API key",
-        default=config.get("api_key", ""),
-    ).strip()
-
-    _warn_if_key_invalid(api_key)
+    while True:
+        api_key = _prompt_for_api_key(config.get("api_key", ""))
+        result = _validate_key_via_api(api_key)
+        if result != "invalid":
+            break
+        print(
+            _color(
+                "Please provide a valid API key to continue.",
+                Colors.YELLOW,
+            )
+        )
 
     text_model = _ask_model(
         "Model for text documents",
@@ -343,7 +382,6 @@ def configure_menu(config: Config) -> Config:
 
     if save_config(new_config):
         print(_color("\nConfiguration updated.", Colors.GREEN))
-        _validate_key_via_api(api_key)
     else:
         print(_color("\nError: could not save the configuration.", Colors.RED))
 

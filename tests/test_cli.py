@@ -83,18 +83,19 @@ def test_setup_wizard_first_run(
         "vision_model": "openai",
     }
     mock_input.side_effect = [
-        "secret-key",  # api key
+        "sk-secret-key-123",  # api key
         "1",  # text model -> openai
         "1",  # vision model -> openai
     ]
     mock_save_config.return_value = True
+    mock_validate.return_value = "valid"
 
     # Open configure explicitly; since config is empty, wizard runs
     code = main(["--configure"])
 
     assert code == 0
     mock_save_config.assert_called_once_with(
-        {"api_key": "secret-key", "text_model": "openai", "vision_model": "openai"}
+        {"api_key": "sk-secret-key-123", "text_model": "openai", "vision_model": "openai"}
     )
 
 
@@ -111,18 +112,19 @@ def test_configure_menu_updates_settings(
         "vision_model": "gemini",
     }
     mock_input.side_effect = [
-        "new-key",  # api key
+        "sk-new-key-12345",  # api key
         "1",  # text model -> openai
         "2",  # vision model -> openai-large
     ]
     mock_save_config.return_value = True
+    mock_validate.return_value = "valid"
 
     code = main(["--configure"])
 
     assert code == 0
     mock_save_config.assert_called_once_with(
         {
-            "api_key": "new-key",
+            "api_key": "sk-new-key-12345",
             "text_model": "openai",
             "vision_model": "openai-large",
         }
