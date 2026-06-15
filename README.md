@@ -41,9 +41,11 @@ python markitdown_for_everyone.py
 
 On the first run it will ask you for:
 
-1. Your Pollinations API key.
+1. Your Pollinations API key (characters are hidden while typing).
 2. A model for text documents (recommended: `openai`).
 3. A model for images (recommended: `openai`).
+
+Type `c` or `cancel` at any prompt to go back without saving changes.
 
 Your choices are saved to `config.json` and you will not need to enter them again.
 
@@ -75,7 +77,7 @@ After the first run, running the program shows a simple menu:
 5. Exit
 ```
 
-Pick a number, enter the file path, and the program does the rest.
+Pick a number, enter the file path, and the program does the rest. If the output file already exists, the program asks before overwriting.
 
 ## Quick conversion (advanced)
 
@@ -101,6 +103,25 @@ FILE                   File to convert (if omitted, the menu opens)
     --configure        Open the configuration menu
     --version          Show version and exit
 -h, --help             Show help message
+```
+
+## Environment variables
+
+| Variable | Purpose |
+|---|---|
+| `POLLINATIONS_API_KEY` | Use this API key instead of the one saved in `config.json`. Useful for CI or shared machines. |
+| `NO_CLEAR` | Set to any value to stop the program from clearing the terminal screen. |
+| `NO_COLOR` | Set to any value to disable ANSI colors in the output. |
+
+```bash
+# Use an API key without saving it to disk
+export POLLINATIONS_API_KEY=sk_...
+
+# Keep output inline (no screen clearing)
+export NO_CLEAR=1
+
+# Disable colors
+export NO_COLOR=1
 ```
 
 ## Examples
@@ -149,6 +170,8 @@ For text-only files, recommended models are:
 | Model does not support images | Switch to a vision model from the list above |
 | Connection error | Make sure you are online |
 | Slow conversion | Large files and busy API servers take longer |
+| Ctrl+C | Pressing Ctrl+C cancels the current operation cleanly |
+| Cancelling a prompt | Type `c` or `cancel` and press Enter to go back |
 
 ## Running tests
 
