@@ -70,20 +70,22 @@ def test_quick_convert_missing_api_key(mock_load_config, temp_file):
     assert code == 1
 
 
+@patch("getpass.getpass")
 @patch("builtins.input")
+@patch("markitdown_pollinations.cli._clear_screen")
 @patch("markitdown_pollinations.cli._validate_key_via_api")
 @patch("markitdown_pollinations.cli.save_config")
 @patch("markitdown_pollinations.cli.load_config")
 def test_setup_wizard_first_run(
-    mock_load_config, mock_save_config, mock_validate, mock_input
+    mock_load_config, mock_save_config, mock_validate, mock_clear, mock_input, mock_getpass
 ):
     mock_load_config.return_value = {
         "api_key": "",
         "text_model": "openai",
         "vision_model": "openai",
     }
+    mock_getpass.return_value = "sk-secret-key-123"
     mock_input.side_effect = [
-        "sk-secret-key-123",  # api key
         "1",  # text model -> openai
         "1",  # vision model -> openai
     ]
@@ -99,20 +101,22 @@ def test_setup_wizard_first_run(
     )
 
 
+@patch("getpass.getpass")
 @patch("builtins.input")
+@patch("markitdown_pollinations.cli._clear_screen")
 @patch("markitdown_pollinations.cli._validate_key_via_api")
 @patch("markitdown_pollinations.cli.save_config")
 @patch("markitdown_pollinations.cli.load_config")
 def test_configure_menu_updates_settings(
-    mock_load_config, mock_save_config, mock_validate, mock_input
+    mock_load_config, mock_save_config, mock_validate, mock_clear, mock_input, mock_getpass
 ):
     mock_load_config.return_value = {
         "api_key": "old-key",
         "text_model": "glm",
         "vision_model": "gemini",
     }
+    mock_getpass.return_value = "sk-new-key-12345"
     mock_input.side_effect = [
-        "sk-new-key-12345",  # api key
         "1",  # text model -> openai
         "2",  # vision model -> openai-large
     ]
@@ -132,18 +136,20 @@ def test_configure_menu_updates_settings(
 
 
 @patch("builtins.input")
+@patch("markitdown_pollinations.cli._clear_screen")
 @patch("markitdown_pollinations.cli.convert_file")
 @patch("markitdown_pollinations.cli.load_config")
 def test_menu_convert_document(
-    mock_load_config, mock_convert_file, mock_input, temp_file
+    mock_load_config, mock_convert_file, mock_clear, mock_input, temp_file
 ):
     mock_load_config.return_value = {
         "api_key": "key",
         "text_model": "openai",
         "vision_model": "openai",
     }
-    # Choose option 3 (document), provide file path, accept default output, then quit
-    mock_input.side_effect = ["3", temp_file, "", "5"]
+    # Choose option 3 (document), provide file path, accept default output,
+    # press Enter to continue, then quit
+    mock_input.side_effect = ["3", temp_file, "", "", "5"]
     result = MagicMock()
     result.success = True
     result.cancelled = False
@@ -158,8 +164,9 @@ def test_menu_convert_document(
 
 
 @patch("builtins.input")
+@patch("markitdown_pollinations.cli._clear_screen")
 @patch("markitdown_pollinations.cli.load_config")
-def test_menu_quit(mock_load_config, mock_input):
+def test_menu_quit(mock_load_config, mock_clear, mock_input):
     mock_load_config.return_value = {
         "api_key": "key",
         "text_model": "openai",

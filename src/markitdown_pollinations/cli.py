@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import os
 import sys
@@ -35,6 +36,14 @@ def _enable_ansi_windows() -> None:
         kernel.SetConsoleMode(handle, mode)
     except Exception:
         pass
+
+
+def _clear_screen() -> None:
+    """Clear the terminal screen."""
+    if os.name == "nt":
+        os.system("cls")
+    else:
+        os.system("clear")
 
 
 class Colors:
@@ -231,19 +240,42 @@ def _validate_key_via_api(api_key: str) -> _KeyValidationResult:
         return "unknown"
 
 
-def _prompt_for_api_key(current_key: str) -> str:
-    """Prompt for an API key and enforce a plausible format."""
-    while True:
-        api_key = _prompt(
-            "Pollinations API key",
-            default=current_key,
-        ).strip()
-        if not api_key:
-            print(_color("An API key is required.", Colors.RED))
-            continue
-        _warn_if_key_invalid(api_key)
-        if api_key.startswith(("sk_", "sk-")) and len(api_key) >= 12:
-            return api_key
+def _mask_key(api_key: str) -> str:
+    """Return a masked representation of an API key for display."""
+    if len(api_key) < 12:
+        return "****"
+    prefix = api_key[:4]
+    suffix = api_key[-4:]
+    return f"{prefix}****{suffix}"
+
+
+def _prompt_for_api_key(current_key: str) -> str | None:
+    """Prompt for an API key and enforce a plausible format.
+
+    The key is read without echoing characters. If the user presses Enter
+    without typing anything, the existing key is kept. Returns the key if it
+    looks valid, or None if the user entered an empty or badly formatted key
+    (after printing the relevant warning).
+    """
+    if current_key:
+        prompt = f"Pollinations API key [{_mask_key(current_key)}]: "
+    else:
+        prompt = "Pollinations API key: "
+
+    try:
+        api_key = getpass.getpass(prompt).strip()
+    except EOFError:
+        return None
+
+    # Keep the current key if the user just pressed Enter.
+    if not api_key and current_key:
+        return current_key
+
+    if not api_key:
+        print(_color("An API key is required.", Colors.RED))
+        return None
+    _warn_if_key_invalid(api_key)
+    if not (api_key.startswith(("sk_", "sk-")) and len(api_key) >= 12):
         print(
             _color(
                 "Please enter a valid Pollinations API key "
@@ -251,6 +283,8 @@ def _prompt_for_api_key(current_key: str) -> str:
                 Colors.YELLOW,
             )
         )
+        return None
+    return api_key
 
 
 def _prompt(text: str, default: str = "") -> str:
@@ -305,20 +339,28 @@ def _ask_model(prompt: str, recommendations: list[str], default: str) -> str:
 
 def setup_wizard(config: Config) -> Config:
     """Run the first-time configuration wizard."""
-    print(_color("\nWelcome to Markitdown-for-everyone!", Colors.GREEN))
-    print("Let's set up the program so you can start converting files.\n")
-
     while True:
+        _clear_screen()
+        print_banner()
+        print(_color("\nWelcome to Markitdown-for-everyone!", Colors.GREEN))
+        print("Let's set up the program so you can start converting files.\n")
+
         api_key = _prompt_for_api_key(config.get("api_key", ""))
+        if api_key is None:
+            _pause("Press Enter to try again...")
+            continue
+
         result = _validate_key_via_api(api_key)
-        if result != "invalid":
+        if result == "valid":
             break
-        print(
-            _color(
-                "Please provide a valid API key to continue.",
-                Colors.YELLOW,
+        if result == "invalid":
+            print(
+                _color(
+                    "Please provide a valid API key to continue.",
+                    Colors.YELLOW,
+                )
             )
-        )
+        _pause("Press Enter to try again...")
 
     text_model = _ask_model(
         "Model for text documents (PDF, Word, Excel, etc.)",
@@ -348,19 +390,27 @@ def setup_wizard(config: Config) -> Config:
 
 def configure_menu(config: Config) -> Config:
     """Show the configuration menu and update settings."""
-    print(_color("\n--- Configuration ---", Colors.CYAN))
-
     while True:
+        _clear_screen()
+        print_banner()
+        print(_color("\n--- Configuration ---", Colors.CYAN))
+
         api_key = _prompt_for_api_key(config.get("api_key", ""))
+        if api_key is None:
+            _pause("Press Enter to try again...")
+            continue
+
         result = _validate_key_via_api(api_key)
-        if result != "invalid":
+        if result == "valid":
             break
-        print(
-            _color(
-                "Please provide a valid API key to continue.",
-                Colors.YELLOW,
+        if result == "invalid":
+            print(
+                _color(
+                    "Please provide a valid API key to continue.",
+                    Colors.YELLOW,
+                )
             )
-        )
+        _pause("Press Enter to try again...")
 
     text_model = _ask_model(
         "Model for text documents",
@@ -440,6 +490,8 @@ def _run_conversion(input_file: str, output_file: str, api_key: str, model: str)
 
 def convert_menu_option(config: Config, file_kind: str) -> int:
     """Handle a conversion option from the main menu."""
+    _clear_screen()
+    print_banner()
     print(_color(f"\n--- Convert {file_kind} to Markdown ---", Colors.CYAN))
     input_file = _ask_file("File path")
     output_file = _ask_output(input_file)
@@ -447,9 +499,25 @@ def convert_menu_option(config: Config, file_kind: str) -> int:
     return _run_conversion(input_file, output_file, config["api_key"], model)
 
 
+def _pause(message: str = "Press Enter to continue...") -> None:
+    """Wait for the user to press Enter."""
+    try:
+        input(_color(message, Colors.CYAN))
+    except EOFError:
+        pass
+
+
 def show_menu(config: Config) -> int:
     """Display the interactive menu and handle choices."""
+    first_iteration = True
     while True:
+        # Keep the banner visible on the first display; refresh on subsequent
+        # iterations so menus do not pile up in the terminal.
+        if not first_iteration:
+            _clear_screen()
+            print_banner()
+        first_iteration = False
+
         print(_color("\n--- Menu ---", Colors.CYAN))
         print("1. Convert PDF to Markdown")
         print("2. Convert Image to Markdown")
@@ -459,6 +527,9 @@ def show_menu(config: Config) -> int:
 
         choice = input("\nChoose an option: ").strip()
 
+        if choice == "5":
+            print(_color("\nGoodbye!", Colors.GREEN))
+            return 0
         if choice == "1":
             convert_menu_option(config, "PDF")
         elif choice == "2":
@@ -467,11 +538,12 @@ def show_menu(config: Config) -> int:
             convert_menu_option(config, "Document")
         elif choice == "4":
             config = configure_menu(config)
-        elif choice == "5":
-            print(_color("\nGoodbye!", Colors.GREEN))
-            return 0
         else:
             print(_color("Invalid option. Please try again.", Colors.YELLOW))
+            _pause()
+            continue
+
+        _pause()
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
