@@ -45,7 +45,7 @@ On the first run it will ask you for:
 2. A model for text documents (recommended: `openai`).
 3. A model for images (recommended: `openai`).
 
-Type `c` or `cancel` at any prompt to go back without saving changes.
+Type `c`, `cancel`, `b`, or `back` at any prompt to go back without saving changes.
 
 Your choices are saved to `config.json` and you will not need to enter them again.
 
@@ -171,7 +171,7 @@ For text-only files, recommended models are:
 | Connection error | Make sure you are online |
 | Slow conversion | Large files and busy API servers take longer |
 | Ctrl+C | Pressing Ctrl+C cancels the current operation cleanly |
-| Cancelling a prompt | Type `c` or `cancel` and press Enter to go back |
+| Cancelling a prompt | Type `c`, `cancel`, `b`, or `back` and press Enter to go back |
 
 ## Running tests
 

@@ -254,7 +254,7 @@ def _mask_key(api_key: str) -> str:
     return f"{prefix}****{suffix}"
 
 
-_CANCEL_INPUT = ("c", "cancel")
+_CANCEL_INPUT = ("c", "cancel", "b", "back")
 
 
 def _is_cancel_input(value: str) -> bool:
@@ -266,10 +266,10 @@ def _prompt_for_api_key(current_key: str) -> str | None:
     """Prompt for an API key and enforce a plausible format.
 
     The key is read without echoing characters. If the user presses Enter
-    without typing anything, the existing key is kept. Type 'c' or 'cancel'
-    to abort this screen. Returns the key if it looks valid, '__cancel__' if
-    the user cancelled, or None if the user entered an empty or badly
-    formatted key (after printing the relevant warning).
+    without typing anything, the existing key is kept. Type 'c', 'cancel',
+    'b', or 'back' to abort this screen. Returns the key if it looks valid,
+    '__cancel__' if the user cancelled, or None if the user entered an empty
+    or badly formatted key (after printing the relevant warning).
     """
     if current_key:
         prompt = f"Pollinations API key [{_mask_key(current_key)}]: "
@@ -327,7 +327,7 @@ def _is_first_run(config: Config) -> bool:
 def _ask_model(prompt: str, recommendations: list[str], default: str) -> str:
     """Ask the user to pick or type a model.
 
-    Type 'c' or 'cancel' to abort this screen.
+    Type 'c', 'cancel', 'b', or 'back' to abort this screen.
     """
     print(_color(f"\n{prompt}", Colors.CYAN))
     print("Recommended:")
