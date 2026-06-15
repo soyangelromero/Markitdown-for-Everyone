@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from markitdown_pollinations import __version__
@@ -72,6 +75,154 @@ def print_banner() -> None:
     print(f"  v{__version__}\n")
 
 
+def _warn_if_key_invalid(api_key: str) -> None:
+    """Print a warning if the API key format looks wrong (local check, no network)."""
+    valid_prefix = api_key.startswith(("sk_", "sk-"))
+    if not valid_prefix:
+        print(
+            _color(
+                "Warning: API keys usually start with 'sk_' or 'sk-'. "
+                "Get your key at https://enter.pollinations.ai",
+                Colors.YELLOW,
+            )
+        )
+    elif len(api_key) < 12:
+        print(
+            _color(
+                "Warning: The API key seems too short. "
+                "Get your key at https://enter.pollinations.ai",
+                Colors.YELLOW,
+            )
+        )
+
+
+POLLINATIONS_BALANCE_URL = "https://gen.pollinations.ai/account/balance"
+POLLINATIONS_CHAT_URL = "https://gen.pollinations.ai/v1/chat/completions"
+VALIDATION_PROMPT = "hello"
+VALIDATION_MODEL = "openai"
+VALIDATION_MAX_TOKENS = 2
+
+
+def _validate_key_via_api(api_key: str) -> bool:
+    """Validate the API key without consuming pollen if possible.
+
+    First tries the free /account/balance endpoint. If that fails for reasons
+    other than an invalid key, falls back to a tiny chat completion call
+    ("hello" with max_tokens=2).
+    """
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "User-Agent": "Markitdown-for-everyone/0.3.0",
+    }
+
+    # 1. Try the free balance endpoint first.
+    try:
+        req = urllib.request.Request(
+            POLLINATIONS_BALANCE_URL,
+            headers=headers,
+            method="GET",
+        )
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            body = resp.read().decode()
+            data = json.loads(body)
+            balance = data.get("balance")
+            if balance is not None:
+                print(
+                    _color(
+                        f"API key is valid. Balance: {balance} pollen",
+                        Colors.GREEN,
+                    )
+                )
+            else:
+                print(_color("API key is valid.", Colors.GREEN))
+            return True
+
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        try:
+            msg = json.loads(body).get("error", {}).get("message", f"HTTP {e.code}")
+        except json.JSONDecodeError:
+            msg = f"HTTP {e.code}"
+
+        if e.code == 401:
+            print(
+                _color(
+                    "Warning: Invalid API key. "
+                    "Get your key at https://enter.pollinations.ai",
+                    Colors.YELLOW,
+                )
+            )
+            return False
+        # Any other error (403, 500, etc.) falls through to chat completion.
+    except (urllib.error.URLError, TimeoutError, OSError):
+        pass  # Network issue; fall through to chat completion.
+
+    # 2. Fallback: minimal chat completion.
+    payload = json.dumps(
+        {
+            "model": VALIDATION_MODEL,
+            "messages": [{"role": "user", "content": VALIDATION_PROMPT}],
+            "max_tokens": VALIDATION_MAX_TOKENS,
+        }
+    ).encode("utf-8")
+
+    try:
+        req = urllib.request.Request(
+            POLLINATIONS_CHAT_URL,
+            data=payload,
+            headers={
+                **headers,
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            if resp.status == 200:
+                print(_color("API key verified successfully.", Colors.GREEN))
+                return True
+            body = resp.read().decode()
+            msg = json.loads(body).get("error", {}).get("message", "Unknown error")
+            print(_color(f"Warning: {msg}", Colors.YELLOW))
+            return False
+
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        try:
+            msg = json.loads(body).get("error", {}).get("message", f"HTTP {e.code}")
+        except json.JSONDecodeError:
+            msg = f"HTTP {e.code}"
+
+        if e.code == 401:
+            print(
+                _color(
+                    "Warning: Invalid API key. "
+                    "Get your key at https://enter.pollinations.ai",
+                    Colors.YELLOW,
+                )
+            )
+        elif e.code == 402:
+            print(
+                _color(
+                    "Warning: Insufficient pollen balance. "
+                    "Top up at https://enter.pollinations.ai",
+                    Colors.YELLOW,
+                )
+            )
+        else:
+            print(_color(f"Warning: {msg}", Colors.YELLOW))
+        return False
+
+    except (urllib.error.URLError, TimeoutError, OSError):
+        print(
+            _color(
+                "Warning: Could not connect to Pollinations API to validate "
+                "the key. Check your internet connection.",
+                Colors.YELLOW,
+            )
+        )
+        return False
+
+
 def _prompt(text: str, default: str = "") -> str:
     """Prompt the user for input and return a stripped value."""
     prompt = f"{text} [{default}]: " if default else f"{text}: "
@@ -132,6 +283,8 @@ def setup_wizard(config: Config) -> Config:
         default=config.get("api_key", ""),
     ).strip()
 
+    _warn_if_key_invalid(api_key)
+
     text_model = _ask_model(
         "Model for text documents (PDF, Word, Excel, etc.)",
         RECOMMENDED_TEXT_MODELS,
@@ -152,6 +305,7 @@ def setup_wizard(config: Config) -> Config:
 
     if save_config(new_config):
         print(_color("\nConfiguration saved successfully.", Colors.GREEN))
+        _validate_key_via_api(api_key)
     else:
         print(_color("\nError: could not save the configuration.", Colors.RED))
 
@@ -166,6 +320,8 @@ def configure_menu(config: Config) -> Config:
         "Pollinations API key",
         default=config.get("api_key", ""),
     ).strip()
+
+    _warn_if_key_invalid(api_key)
 
     text_model = _ask_model(
         "Model for text documents",
@@ -187,6 +343,7 @@ def configure_menu(config: Config) -> Config:
 
     if save_config(new_config):
         print(_color("\nConfiguration updated.", Colors.GREEN))
+        _validate_key_via_api(api_key)
     else:
         print(_color("\nError: could not save the configuration.", Colors.RED))
 
