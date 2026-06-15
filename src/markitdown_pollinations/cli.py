@@ -363,12 +363,13 @@ def _configure_flow(
 
     Validates the API key, asks for text and vision models, and saves the
     configuration. Returns the original config unchanged if the user cancels.
+
+    This intentionally does not clear the screen: the banner stays visible at
+    the top and sub-screens print their content below it.
     """
     original_config = config.copy()
 
     while True:
-        _clear_screen()
-        print_banner()
         print(_color(f"\n{header}", Colors.CYAN))
         if welcome:
             print(_color(welcome, Colors.GREEN))
@@ -525,8 +526,6 @@ def _run_conversion(input_file: str, output_file: str, api_key: str, model: str)
 
 def convert_menu_option(config: Config, file_kind: str) -> int:
     """Handle a conversion option from the main menu."""
-    _clear_screen()
-    print_banner()
     print(_color(f"\n--- Convert {file_kind} to Markdown ---", Colors.CYAN))
     input_file = _ask_file("File path")
     if input_file == "__cancel__":
@@ -553,15 +552,7 @@ def _pause(message: str = "Press Enter to continue...") -> None:
 
 def show_menu(config: Config) -> int:
     """Display the interactive menu and handle choices."""
-    first_iteration = True
     while True:
-        # Keep the banner visible on the first display; refresh on subsequent
-        # iterations so menus do not pile up in the terminal.
-        if not first_iteration:
-            _clear_screen()
-            print_banner()
-        first_iteration = False
-
         print(_color("\n--- Menu ---", Colors.CYAN))
         print("1. Convert PDF to Markdown")
         print("2. Convert Image to Markdown")
@@ -653,6 +644,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         _enable_ansi_windows()
         args = parse_args(argv)
+        # Clear once at startup so the banner appears at the top of the
+        # terminal. Sub-screens never clear again; they append below the banner
+        # to avoid the repeated full-screen redraw effect.
+        _clear_screen()
         print_banner()
 
         config = load_config()
