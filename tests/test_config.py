@@ -65,9 +65,66 @@ def test_load_config_returns_valid_config(isolated_config):
     }
 
 
+def test_load_config_uses_env_api_key(isolated_config, monkeypatch):
+    isolated_config.write_text(
+        '{"api_key": "file_key", "text_model": "openai", "vision_model": "openai"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("POLLINATIONS_API_KEY", "env_key")
+    assert load_config() == {
+        "api_key": "env_key",
+        "text_model": "openai",
+        "vision_model": "openai",
+    }
+
+
+def test_load_config_ignores_empty_env_api_key(isolated_config, monkeypatch):
+    isolated_config.write_text(
+        '{"api_key": "file_key", "text_model": "openai", "vision_model": "openai"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("POLLINATIONS_API_KEY", "   ")
+    assert load_config() == {
+        "api_key": "file_key",
+        "text_model": "openai",
+        "vision_model": "openai",
+    }
+
+
 def test_save_config_returns_false_on_write_error(isolated_config):
     with patch("builtins.open", mock_open()) as mocked:
         mocked.return_value.write.side_effect = OSError("permission denied")
         assert save_config(
             {"api_key": "x", "text_model": "y", "vision_model": "z"}
         ) is False
+
+
+def test_save_config_sets_unix_permissions(isolated_config, monkeypatch):
+    chmod_calls = []
+
+    def fake_chmod(path, mode):
+        chmod_calls.append((str(path), mode))
+
+    monkeypatch.setattr("os.chmod", fake_chmod)
+    monkeypatch.setattr("os.name", "posix")
+
+    assert save_config(
+        {"api_key": "sk_test", "text_model": "openai", "vision_model": "openai"}
+    ) is True
+    assert len(chmod_calls) == 1
+    assert chmod_calls[0][1] == 0o600
+
+
+def test_save_config_skips_chmod_on_windows(isolated_config, monkeypatch):
+    chmod_calls = []
+
+    def fake_chmod(path, mode):
+        chmod_calls.append((str(path), mode))
+
+    monkeypatch.setattr("os.chmod", fake_chmod)
+    monkeypatch.setattr("os.name", "nt")
+
+    assert save_config(
+        {"api_key": "sk_test", "text_model": "openai", "vision_model": "openai"}
+    ) is True
+    assert len(chmod_calls) == 0

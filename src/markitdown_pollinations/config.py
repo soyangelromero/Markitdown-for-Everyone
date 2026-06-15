@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import TypedDict
 
@@ -26,9 +27,19 @@ DEFAULT_CONFIG: Config = {
 def load_config() -> Config:
     """Load configuration from config.json or return defaults.
 
+    The ``POLLINATIONS_API_KEY`` environment variable, if set, overrides the
+    API key stored in the config file so users can avoid persisting secrets
+    to disk.
+
     Returns DEFAULT_CONFIG if file is missing, unreadable, or invalid JSON.
     Prints a warning message on any error.
     """
+    env_key = os.environ.get("POLLINATIONS_API_KEY", "").strip()
+    if env_key:
+        config = DEFAULT_CONFIG.copy()
+        config["api_key"] = env_key
+        return config
+
     if not CONFIG_FILE.exists():
         return DEFAULT_CONFIG.copy()
 
@@ -50,6 +61,9 @@ def load_config() -> Config:
 def save_config(config: Config) -> bool:
     """Save configuration to config.json.
 
+    On Unix-like systems the file permissions are set to 0o600 so only the
+    owner can read the API key. On Windows this step is skipped gracefully.
+
     Args:
         config: Configuration dictionary to save.
 
@@ -60,6 +74,12 @@ def save_config(config: Config) -> bool:
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
+        # Restrict permissions on Unix-like systems. Best-effort on Windows.
+        if os.name != "nt":
+            try:
+                os.chmod(CONFIG_FILE, 0o600)
+            except (OSError, AttributeError):
+                pass
         return True
     except (IOError, OSError) as e:
         print(f"Error: Could not save config file: {e}")
