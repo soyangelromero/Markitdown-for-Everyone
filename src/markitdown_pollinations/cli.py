@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import itertools
 import json
 import os
+import sys
+import threading
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -271,7 +275,7 @@ def _prompt_for_api_key(current_key: str) -> str | None:
     The key is read without echoing characters. If the user presses Enter
     without typing anything, the existing key is kept. Type 'c', 'cancel',
     'b', or 'back' to abort this screen. Returns the key if one was entered,
-    '__cancel__' if the user cancelled, or None if the user entered an empty
+    None if the user cancelled, or None if the user entered an empty
     value when no existing key is available (after printing a warning).
     """
     if current_key:
@@ -285,7 +289,7 @@ def _prompt_for_api_key(current_key: str) -> str | None:
         return None
 
     if _is_cancel_input(api_key):
-        return "__cancel__"
+        return None
 
     # Keep the current key if the user just pressed Enter.
     if not api_key and current_key:
@@ -318,7 +322,7 @@ def _is_first_run(config: Config) -> bool:
     return not config.get("api_key", "").strip()
 
 
-def _ask_model(prompt: str, recommendations: list[str], default: str) -> str:
+def _ask_model(prompt: str, recommendations: list[str], default: str) -> str | None:
     """Ask the user to pick or type a model.
 
     Type 'c', 'cancel', 'b', or 'back' to abort this screen.
@@ -334,11 +338,11 @@ def _ask_model(prompt: str, recommendations: list[str], default: str) -> str:
     while True:
         choice = input("Select: ").strip()
         if _is_cancel_input(choice):
-            return "__cancel__"
+            return None
         if choice == "0":
             model = _prompt("Enter the model name", default=default).strip()
             if _is_cancel_input(model):
-                return "__cancel__"
+                return None
             return model or default
         if choice.isdigit() and 1 <= int(choice) <= len(recommendations):
             return recommendations[int(choice) - 1]
@@ -369,12 +373,9 @@ def _configure_flow(
             print(_color(welcome, Colors.GREEN))
 
         api_key = _prompt_for_api_key(config.get("api_key", ""))
-        if api_key == "__cancel__":
+        if api_key is None:
             print(_color("\nConfiguration cancelled.", Colors.YELLOW))
             return original_config
-        if api_key is None:
-            _pause("Press Enter to try again...")
-            continue
 
         print(_color("Validating API key...", Colors.CYAN))
         result = _validate_key_via_api(api_key)
@@ -394,7 +395,7 @@ def _configure_flow(
         RECOMMENDED_TEXT_MODELS,
         config.get("text_model", "openai"),
     )
-    if text_model == "__cancel__":
+    if text_model is None:
         print(_color("\nConfiguration cancelled.", Colors.YELLOW))
         return original_config
 
@@ -403,7 +404,7 @@ def _configure_flow(
         RECOMMENDED_VISION_MODELS,
         config.get("vision_model", "openai"),
     )
-    if vision_model == "__cancel__":
+    if vision_model is None:
         print(_color("\nConfiguration cancelled.", Colors.YELLOW))
         return original_config
 
@@ -445,7 +446,7 @@ def configure_menu(config: Config) -> Config:
     )
 
 
-def _ask_file(prompt: str) -> str:
+def _ask_file(prompt: str) -> str | None:
     """Prompt for a file path and validate that it exists.
 
     Type 'c', 'cancel', 'b', or 'back' to abort this screen.
@@ -453,13 +454,13 @@ def _ask_file(prompt: str) -> str:
     while True:
         path = input(f"{prompt} (or 'c'/'b' to cancel/back): ").strip().strip('"')
         if _is_cancel_input(path):
-            return "__cancel__"
+            return None
         if Path(path).is_file():
             return path
         print(_color(f"File not found: {path}", Colors.RED))
 
 
-def _ask_output(input_file: str) -> str:
+def _ask_output(input_file: str) -> str | None:
     """Prompt for an output path with a sensible default.
 
     Type 'c', 'cancel', 'b', or 'back' to abort this screen.
@@ -467,7 +468,7 @@ def _ask_output(input_file: str) -> str:
     default = str(Path(input_file).with_suffix(".md"))
     path = _prompt("Output file", default=default).strip().strip('"')
     if _is_cancel_input(path):
-        return "__cancel__"
+        return None
     return path or default
 
 
@@ -502,7 +503,31 @@ def _run_conversion(input_file: str, output_file: str, api_key: str, model: str)
         f"using model {_color(model, Colors.CYAN)}..."
     )
 
+    # Spinner for conversion
+    spinner_frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    stop_spinner = False
+    no_color = bool(os.environ.get("NO_COLOR"))
+
+    def spin():
+        for frame in itertools.cycle(spinner_frames):
+            if stop_spinner:
+                break
+            if no_color:
+                sys.stdout.write(f"\rConverting... ")
+            else:
+                sys.stdout.write(f"\r{frame} Converting... ")
+            sys.stdout.flush()
+            time.sleep(0.1)
+        sys.stdout.write("\r" + " " * 30 + "\r")
+        sys.stdout.flush()
+
+    spinner_thread = threading.Thread(target=spin)
+    spinner_thread.start()
+
     result: ConversionResult = convert_file(input_file, output_file, api_key, model)
+
+    stop_spinner = True
+    spinner_thread.join()
 
     if result.cancelled:
         print(_color("Conversion cancelled.", Colors.YELLOW))
@@ -522,11 +547,11 @@ def convert_menu_option(config: Config, file_kind: str) -> int:
     """Handle a conversion option from the main menu."""
     print(_color(f"\n--- Convert {file_kind} to Markdown ---", Colors.CYAN))
     input_file = _ask_file("File path")
-    if input_file == "__cancel__":
+    if input_file is None:
         print(_color("Cancelled.", Colors.YELLOW))
         return 0
     output_file = _ask_output(input_file)
-    if output_file == "__cancel__":
+    if output_file is None:
         print(_color("Cancelled.", Colors.YELLOW))
         return 0
     if not _confirm_overwrite(output_file):

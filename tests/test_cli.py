@@ -271,7 +271,7 @@ def test_is_cancel_input_rejects_regular_text():
 @patch("getpass.getpass")
 def test_prompt_for_api_key_returns_cancel_token(mock_getpass):
     mock_getpass.return_value = "c"
-    assert _prompt_for_api_key("") == "__cancel__"
+    assert _prompt_for_api_key("") is None
 
 
 @patch("getpass.getpass")
@@ -283,19 +283,19 @@ def test_prompt_for_api_key_keeps_existing_key_on_empty_input(mock_getpass):
 @patch("builtins.input")
 def test_ask_file_returns_cancel_token(mock_input):
     mock_input.return_value = "cancel"
-    assert _ask_file("File path") == "__cancel__"
+    assert _ask_file("File path") is None
 
 
 @patch("builtins.input")
 def test_ask_output_returns_cancel_token(mock_input):
     mock_input.return_value = "c"
-    assert _ask_output("input.pdf") == "__cancel__"
+    assert _ask_output("input.pdf") is None
 
 
 @patch("builtins.input")
 def test_ask_model_returns_cancel_token(mock_input):
     mock_input.return_value = "c"
-    assert _ask_model("Pick a model", ["openai", "glm"], "openai") == "__cancel__"
+    assert _ask_model("Pick a model", ["openai", "glm"], "openai") is None
 
 
 @patch("builtins.input")
