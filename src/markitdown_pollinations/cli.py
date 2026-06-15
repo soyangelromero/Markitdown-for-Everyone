@@ -145,18 +145,21 @@ def _validate_key_via_api(api_key: str) -> _KeyValidationResult:
         )
         with urllib.request.urlopen(req, timeout=VALIDATION_TIMEOUT_SECONDS) as resp:
             body = resp.read().decode()
-            data = json.loads(body)
-            balance = data.get("balance")
-            if balance is not None:
-                print(
-                    _color(
-                        f"API key is valid. Balance: {balance} pollen",
-                        Colors.GREEN,
+            try:
+                data = json.loads(body)
+                balance = data.get("balance")
+                if balance is not None:
+                    print(
+                        _color(
+                            f"API key is valid. Balance: {balance} pollen",
+                            Colors.GREEN,
+                        )
                     )
-                )
-            else:
-                print(_color("API key is valid.", Colors.GREEN))
-            return "valid"
+                else:
+                    print(_color("API key is valid.", Colors.GREEN))
+                return "valid"
+            except json.JSONDecodeError:
+                pass  # Non-JSON response; fall through to chat completion.
 
     except urllib.error.HTTPError as e:
         body = e.read().decode()
