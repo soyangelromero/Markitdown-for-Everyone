@@ -254,13 +254,22 @@ def _mask_key(api_key: str) -> str:
     return f"{prefix}****{suffix}"
 
 
+_CANCEL_INPUT = ("c", "cancel")
+
+
+def _is_cancel_input(value: str) -> bool:
+    """Return True if the user typed a cancel/back command."""
+    return value.strip().lower() in _CANCEL_INPUT
+
+
 def _prompt_for_api_key(current_key: str) -> str | None:
     """Prompt for an API key and enforce a plausible format.
 
     The key is read without echoing characters. If the user presses Enter
-    without typing anything, the existing key is kept. Returns the key if it
-    looks valid, or None if the user entered an empty or badly formatted key
-    (after printing the relevant warning).
+    without typing anything, the existing key is kept. Type 'c' or 'cancel'
+    to abort this screen. Returns the key if it looks valid, '__cancel__' if
+    the user cancelled, or None if the user entered an empty or badly
+    formatted key (after printing the relevant warning).
     """
     if current_key:
         prompt = f"Pollinations API key [{_mask_key(current_key)}]: "
@@ -271,6 +280,9 @@ def _prompt_for_api_key(current_key: str) -> str | None:
         api_key = getpass.getpass(prompt).strip()
     except EOFError:
         return None
+
+    if _is_cancel_input(api_key):
+        return "__cancel__"
 
     # Keep the current key if the user just pressed Enter.
     if not api_key and current_key:
@@ -325,18 +337,27 @@ def _is_first_run(config: Config) -> bool:
 
 
 def _ask_model(prompt: str, recommendations: list[str], default: str) -> str:
-    """Ask the user to pick or type a model."""
+    """Ask the user to pick or type a model.
+
+    Type 'c' or 'cancel' to abort this screen.
+    """
     print(_color(f"\n{prompt}", Colors.CYAN))
     print("Recommended:")
     for idx, model in enumerate(recommendations, start=1):
         marker = "*" if model == default else " "
         print(f"  {idx}. {marker} {model}")
     print("  0. Other (type manually)")
+    print("  c. Cancel")
 
     while True:
         choice = input("Select: ").strip()
+        if _is_cancel_input(choice):
+            return "__cancel__"
         if choice == "0":
-            return _prompt("Enter the model name", default=default).strip() or default
+            model = _prompt("Enter the model name", default=default).strip()
+            if _is_cancel_input(model):
+                return "__cancel__"
+            return model or default
         if choice.isdigit() and 1 <= int(choice) <= len(recommendations):
             return recommendations[int(choice) - 1]
         print(_color("Invalid option. Please try again.", Colors.YELLOW))
@@ -351,6 +372,9 @@ def setup_wizard(config: Config) -> Config:
         print("Let's set up the program so you can start converting files.\n")
 
         api_key = _prompt_for_api_key(config.get("api_key", ""))
+        if api_key == "__cancel__":
+            print(_color("\nSetup cancelled.", Colors.YELLOW))
+            return config
         if api_key is None:
             _pause("Press Enter to try again...")
             continue
@@ -372,12 +396,18 @@ def setup_wizard(config: Config) -> Config:
         RECOMMENDED_TEXT_MODELS,
         config.get("text_model", "openai"),
     )
+    if text_model == "__cancel__":
+        print(_color("\nSetup cancelled.", Colors.YELLOW))
+        return config
 
     vision_model = _ask_model(
         "Model for images (JPG, PNG, etc.)",
         RECOMMENDED_VISION_MODELS,
         config.get("vision_model", "openai"),
     )
+    if vision_model == "__cancel__":
+        print(_color("\nSetup cancelled.", Colors.YELLOW))
+        return config
 
     new_config: Config = {
         "api_key": api_key,
@@ -395,12 +425,17 @@ def setup_wizard(config: Config) -> Config:
 
 def configure_menu(config: Config) -> Config:
     """Show the configuration menu and update settings."""
+    original_config = config.copy()
+
     while True:
         _clear_screen()
         print_banner()
         print(_color("\n--- Configuration ---", Colors.CYAN))
 
         api_key = _prompt_for_api_key(config.get("api_key", ""))
+        if api_key == "__cancel__":
+            print(_color("\nConfiguration cancelled.", Colors.YELLOW))
+            return original_config
         if api_key is None:
             _pause("Press Enter to try again...")
             continue
@@ -422,12 +457,18 @@ def configure_menu(config: Config) -> Config:
         RECOMMENDED_TEXT_MODELS,
         config.get("text_model", "openai"),
     )
+    if text_model == "__cancel__":
+        print(_color("\nConfiguration cancelled.", Colors.YELLOW))
+        return original_config
 
     vision_model = _ask_model(
         "Model for images",
         RECOMMENDED_VISION_MODELS,
         config.get("vision_model", "openai"),
     )
+    if vision_model == "__cancel__":
+        print(_color("\nConfiguration cancelled.", Colors.YELLOW))
+        return original_config
 
     new_config: Config = {
         "api_key": api_key,
@@ -444,18 +485,28 @@ def configure_menu(config: Config) -> Config:
 
 
 def _ask_file(prompt: str) -> str:
-    """Prompt for a file path and validate that it exists."""
+    """Prompt for a file path and validate that it exists.
+
+    Type 'c' or 'cancel' to abort this screen.
+    """
     while True:
-        path = input(f"{prompt}: ").strip().strip('"')
+        path = input(f"{prompt} (or 'c' to cancel): ").strip().strip('"')
+        if _is_cancel_input(path):
+            return "__cancel__"
         if Path(path).is_file():
             return path
         print(_color(f"File not found: {path}", Colors.RED))
 
 
 def _ask_output(input_file: str) -> str:
-    """Prompt for an output path with a sensible default."""
+    """Prompt for an output path with a sensible default.
+
+    Type 'c' or 'cancel' to abort this screen.
+    """
     default = str(Path(input_file).with_suffix(".md"))
     path = _prompt("Output file", default=default).strip().strip('"')
+    if _is_cancel_input(path):
+        return "__cancel__"
     return path or default
 
 
@@ -499,7 +550,13 @@ def convert_menu_option(config: Config, file_kind: str) -> int:
     print_banner()
     print(_color(f"\n--- Convert {file_kind} to Markdown ---", Colors.CYAN))
     input_file = _ask_file("File path")
+    if input_file == "__cancel__":
+        print(_color("Cancelled.", Colors.YELLOW))
+        return 0
     output_file = _ask_output(input_file)
+    if output_file == "__cancel__":
+        print(_color("Cancelled.", Colors.YELLOW))
+        return 0
     model = _model_for_file(config, input_file)
     return _run_conversion(input_file, output_file, config["api_key"], model)
 
@@ -627,6 +684,9 @@ def main(argv: list[str] | None = None) -> int:
 
         if _is_first_run(config):
             config = setup_wizard(config)
+            if _is_first_run(config):
+                print(_color("\nAn API key is required to use the program.", Colors.YELLOW))
+                return 0
 
         return show_menu(config)
     except KeyboardInterrupt:
