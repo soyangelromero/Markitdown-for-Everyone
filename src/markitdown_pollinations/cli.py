@@ -504,7 +504,7 @@ def _run_conversion(input_file: str, output_file: str, api_key: str, model: str)
 
     print(
         f"\nConverting {_color(input_file, Colors.CYAN)} "
-        f"→ {_color(output_file, Colors.CYAN)} "
+        f"-> {_color(output_file, Colors.CYAN)} "
         f"using model {_color(model, Colors.CYAN)}..."
     )
 
