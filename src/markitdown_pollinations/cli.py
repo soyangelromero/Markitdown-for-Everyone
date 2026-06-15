@@ -39,11 +39,16 @@ def _enable_ansi_windows() -> None:
 
 
 def _clear_screen() -> None:
-    """Clear the terminal screen."""
-    if os.name == "nt":
-        os.system("cls")
-    else:
-        os.system("clear")
+    """Clear the terminal screen using ANSI escape sequences.
+
+    Does nothing if the NO_CLEAR environment variable is set, so users who
+    prefer inline output (e.g. in CI or logs) can disable clearing.
+    """
+    if os.environ.get("NO_CLEAR"):
+        return
+    # Clear screen and move cursor to top-left. This avoids spawning a shell
+    # via os.system("cls"/"clear") and works on any ANSI-capable terminal.
+    print("\033[2J\033[H", end="")
 
 
 class Colors:
