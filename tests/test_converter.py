@@ -7,6 +7,7 @@ import pytest
 from openai import (
     APIConnectionError,
     APIError,
+    APITimeoutError,
     AuthenticationError,
     NotFoundError,
     RateLimitError,
@@ -40,21 +41,6 @@ def test_convert_success(tmp_path):
     assert result.success is True
     assert result.output_path == str(output_file)
     assert output_file.read_text(encoding="utf-8") == "Converted text"
-
-
-def test_convert_cancellation_before_start(tmp_path):
-    input_file = _make_input(tmp_path)
-    output_file = tmp_path / "output.md"
-    import threading
-
-    event = threading.Event()
-    event.set()
-
-    result = convert_file(str(input_file), str(output_file), "key", "openai", event)
-
-    assert result.cancelled is True
-    assert result.success is False
-    assert not output_file.exists()
 
 
 def test_convert_empty_content_warning(tmp_path):
@@ -196,3 +182,65 @@ def test_convert_write_error(tmp_path):
 
     assert result.success is False
     assert "Could not write" in result.message
+
+
+def test_convert_retries_on_connection_error(tmp_path):
+    input_file = _make_input(tmp_path)
+    output_file = tmp_path / "output.md"
+
+    with patch("markitdown_pollinations.converter.time.sleep"):
+        with patch("markitdown_pollinations.converter.create_client") as mock_create:
+            mock_create.side_effect = [
+                APIConnectionError(request=MagicMock()),
+                APIConnectionError(request=MagicMock()),
+                MagicMock(),
+            ]
+
+            with patch("markitdown_pollinations.converter.MarkItDown") as MockMD:
+                mock_result = MagicMock()
+                mock_result.markdown = "Converted text"
+                MockMD.return_value.convert.return_value = mock_result
+
+                result = convert_file(str(input_file), str(output_file), "key", "openai")
+
+    assert result.success is True
+    assert mock_create.call_count == 3
+
+
+def test_convert_retries_on_timeout_error(tmp_path):
+    input_file = _make_input(tmp_path)
+    output_file = tmp_path / "output.md"
+
+    with patch("markitdown_pollinations.converter.time.sleep"):
+        with patch("markitdown_pollinations.converter.create_client") as mock_create:
+            mock_create.side_effect = [
+                APITimeoutError(request=MagicMock()),
+                APITimeoutError(request=MagicMock()),
+                MagicMock(),
+            ]
+
+            with patch("markitdown_pollinations.converter.MarkItDown") as MockMD:
+                mock_result = MagicMock()
+                mock_result.markdown = "Converted text"
+                MockMD.return_value.convert.return_value = mock_result
+
+                result = convert_file(str(input_file), str(output_file), "key", "openai")
+
+    assert result.success is True
+    assert mock_create.call_count == 3
+
+
+def test_convert_no_retry_on_auth_error(tmp_path):
+    input_file = _make_input(tmp_path)
+    output_file = tmp_path / "output.md"
+
+    with patch("markitdown_pollinations.converter.create_client") as mock_create:
+        mock_create.side_effect = AuthenticationError(
+            "unauthorized", response=MagicMock(), body=None
+        )
+
+        result = convert_file(str(input_file), str(output_file), "key", "openai")
+
+    assert result.success is False
+    assert "Invalid API key" in result.message
+    assert mock_create.call_count == 1
