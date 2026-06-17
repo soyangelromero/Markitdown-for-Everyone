@@ -16,10 +16,10 @@ from markitdown_pollinations.cli import (
     _confirm_overwrite,
     _is_cancel_input,
     _prompt_for_api_key,
-    _validate_key_via_api,
     main,
     parse_args,
 )
+from markitdown_pollinations.validation import _validate_key_via_api
 
 
 @pytest.fixture
@@ -215,16 +215,8 @@ def test_is_cancel_input_detects_back_variants(value):
 
 
 @patch("urllib.request.urlopen")
-@patch("markitdown_pollinations.cli.load_config")
-def test_validate_key_via_api_non_json_balance_response(
-    mock_load_config, mock_urlopen
-):
+def test_validate_key_via_api_non_json_balance_response(mock_urlopen):
     """T5.3: _validate_key_via_api handles non-JSON balance response gracefully."""
-    mock_load_config.return_value = {
-        "api_key": "key",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
     # Balance endpoint returns non-JSON.
     mock_resp = MagicMock()
     mock_resp.read.return_value = b"not json at all"
@@ -239,9 +231,17 @@ def test_validate_key_via_api_non_json_balance_response(
 
 
 def test_no_unicode_arrow_in_cli_output(capsys):
-    """T5.4: No user-facing strings contain the Unicode arrow \\u2192."""
-    import markitdown_pollinations.cli as cli_module
+    """T5.4: No user-facing strings contain the Unicode arrow \\u2192.
+
+    Regression test: a previous version used the Unicode arrow character (→, U+2192)
+    in user-facing strings, which broke on terminals without Unicode support.
+    This test ensures no such characters are reintroduced.
+    After T4, validation.py also has user-facing strings — see
+    test_no_unicode_arrow_in_validation_output in test_validation.py.
+    """
     import inspect
+
+    import markitdown_pollinations.cli as cli_module
 
     source = inspect.getsource(cli_module)
     lines = source.splitlines()
@@ -253,9 +253,7 @@ def test_no_unicode_arrow_in_cli_output(capsys):
         ):
             violations.append(f"line {lineno}: {line.strip()}")
 
-    assert not violations, "Non-ASCII or \\u2192 found in cli.py:\n" + "\n".join(
-        violations
-    )
+    assert not violations, "Non-ASCII or \\u2192 found in cli.py:\n" + "\n".join(violations)
 
 
 @pytest.mark.parametrize("value", ["c", "C", "cancel", "CANCEL", "  Cancel  "])
@@ -344,9 +342,7 @@ def test_clear_screen_emits_ansi_escape_by_default(capsys):
 @patch("builtins.input")
 @patch("markitdown_pollinations.cli._clear_screen")
 @patch("markitdown_pollinations.cli.load_config")
-def test_main_handles_keyboard_interrupt_gracefully(
-    mock_load_config, mock_clear, mock_input
-):
+def test_main_handles_keyboard_interrupt_gracefully(mock_load_config, mock_clear, mock_input):
     mock_load_config.return_value = {
         "api_key": "key",
         "text_model": "openai",
