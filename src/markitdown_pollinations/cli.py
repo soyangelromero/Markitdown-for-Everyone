@@ -5,32 +5,30 @@ from __future__ import annotations
 import argparse
 import getpass
 import itertools
-import json
 import os
 import sys
 import threading
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
-from typing import Literal
 
 from markitdown_pollinations import __version__
 from markitdown_pollinations.config import Config, load_config, save_config
 from markitdown_pollinations.constants import (
     IMAGE_EXTENSIONS,
-    POLLINATIONS_BALANCE_URL,
-    POLLINATIONS_CHAT_URL,
     RECOMMENDED_TEXT_MODELS,
     RECOMMENDED_VISION_MODELS,
-    VALIDATION_MAX_TOKENS,
-    VALIDATION_MODEL,
-    VALIDATION_PROMPT,
-    VALIDATION_TIMEOUT_SECONDS,
-    VALIDATION_USER_AGENT,
     VISION_MODELS,
+    Colors,
+    _color,
 )
 from markitdown_pollinations.converter import ConversionResult, convert_file
+from markitdown_pollinations.validation import (
+    _mask_key,
+    _validate_key_via_api,
+    _warn_if_key_invalid,
+)
+
+
 def _enable_ansi_windows() -> None:
     """Enable ANSI escape sequences on Windows terminals."""
     if os.name != "nt":
@@ -61,25 +59,6 @@ def _clear_screen() -> None:
     print("\033[2J\033[H", end="")
 
 
-class Colors:
-    """ANSI color codes."""
-
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    CYAN = "\033[36m"
-    GREEN = "\033[32m"
-    YELLOW = "\033[33m"
-    RED = "\033[31m"
-    MAGENTA = "\033[35m"
-
-
-def _color(text: str, color: str) -> str:
-    """Wrap text in ANSI color codes if NO_COLOR is not set."""
-    if os.environ.get("NO_COLOR"):
-        return text
-    return f"{color}{text}{Colors.RESET}"
-
-
 def print_banner() -> None:
     """Print the program banner."""
     art = r"""
@@ -98,167 +77,6 @@ def print_banner() -> None:
     print(_color(art, Colors.CYAN))
     print(f"  by {_color('Angel Romero', Colors.BOLD)} - https://github.com/soyangelromero")
     print(f"  v{__version__}\n")
-
-
-def _warn_if_key_invalid(api_key: str) -> None:
-    """Print a warning if the API key format looks wrong (local check, no network)."""
-    valid_prefix = api_key.startswith(("sk_", "sk-"))
-    if not valid_prefix:
-        print(
-            _color(
-                "Warning: API keys usually start with 'sk_' or 'sk-'. "
-                "Get your key at https://enter.pollinations.ai",
-                Colors.YELLOW,
-            )
-        )
-    elif len(api_key) < 12:
-        print(
-            _color(
-                "Warning: The API key seems too short. "
-                "Get your key at https://enter.pollinations.ai",
-                Colors.YELLOW,
-            )
-        )
-
-
-_KeyValidationResult = Literal["valid", "invalid", "unknown"]
-
-
-def _validate_key_via_api(api_key: str) -> _KeyValidationResult:
-    """Validate the API key without consuming pollen if possible.
-
-    First tries the free /account/balance endpoint. If that fails for reasons
-    other than an invalid key, falls back to a tiny chat completion call
-    ("hello" with max_tokens=2).
-
-    Returns:
-        "valid" if the key is accepted, "invalid" if the API rejects it, or
-        "unknown" when the check could not complete (e.g. network issue).
-    """
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "User-Agent": VALIDATION_USER_AGENT,
-    }
-
-    # 1. Try the free balance endpoint first.
-    try:
-        req = urllib.request.Request(
-            POLLINATIONS_BALANCE_URL,
-            headers=headers,
-            method="GET",
-        )
-        with urllib.request.urlopen(req, timeout=VALIDATION_TIMEOUT_SECONDS) as resp:
-            body = resp.read().decode()
-            try:
-                data = json.loads(body)
-                balance = data.get("balance")
-                if balance is not None:
-                    print(
-                        _color(
-                            f"API key is valid. Balance: {balance} pollen",
-                            Colors.GREEN,
-                        )
-                    )
-                else:
-                    print(_color("API key is valid.", Colors.GREEN))
-                return "valid"
-            except json.JSONDecodeError:
-                pass  # Non-JSON response; fall through to chat completion.
-
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        try:
-            msg = json.loads(body).get("error", {}).get("message", f"HTTP {e.code}")
-        except json.JSONDecodeError:
-            msg = f"HTTP {e.code}"
-
-        if e.code == 401:
-            print(
-                _color(
-                    "Invalid API key. "
-                    "Get your key at https://enter.pollinations.ai",
-                    Colors.YELLOW,
-                )
-            )
-            return "invalid"
-        # Any other error (403, 500, etc.) falls through to chat completion.
-    except (urllib.error.URLError, TimeoutError, OSError):
-        pass  # Network issue; fall through to chat completion.
-
-    # 2. Fallback: minimal chat completion.
-    payload = json.dumps(
-        {
-            "model": VALIDATION_MODEL,
-            "messages": [{"role": "user", "content": VALIDATION_PROMPT}],
-            "max_tokens": VALIDATION_MAX_TOKENS,
-        }
-    ).encode("utf-8")
-
-    try:
-        req = urllib.request.Request(
-            POLLINATIONS_CHAT_URL,
-            data=payload,
-            headers={
-                **headers,
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=VALIDATION_TIMEOUT_SECONDS) as resp:
-            if resp.status == 200:
-                print(_color("API key verified successfully.", Colors.GREEN))
-                return "valid"
-            body = resp.read().decode()
-            msg = json.loads(body).get("error", {}).get("message", "Unknown error")
-            print(_color(f"Warning: {msg}", Colors.YELLOW))
-            return "unknown"
-
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        try:
-            msg = json.loads(body).get("error", {}).get("message", f"HTTP {e.code}")
-        except json.JSONDecodeError:
-            msg = f"HTTP {e.code}"
-
-        if e.code == 401:
-            print(
-                _color(
-                    "Invalid API key. "
-                    "Get your key at https://enter.pollinations.ai",
-                    Colors.YELLOW,
-                )
-            )
-            return "invalid"
-        if e.code == 402:
-            print(
-                _color(
-                    "Warning: Insufficient pollen balance. "
-                    "Top up at https://enter.pollinations.ai",
-                    Colors.YELLOW,
-                )
-            )
-            return "valid"
-        print(_color(f"Warning: {msg}", Colors.YELLOW))
-        return "unknown"
-
-    except (urllib.error.URLError, TimeoutError, OSError):
-        print(
-            _color(
-                "Warning: Could not connect to Pollinations API to validate "
-                "the key. Check your internet connection.",
-                Colors.YELLOW,
-            )
-        )
-        return "unknown"
-
-
-def _mask_key(api_key: str) -> str:
-    """Return a masked representation of an API key for display."""
-    if len(api_key) < 12:
-        return "****"
-    prefix = api_key[:4]
-    suffix = api_key[-4:]
-    return f"{prefix}****{suffix}"
 
 
 _CANCEL_INPUT = ("c", "cancel", "b", "back")
@@ -296,7 +114,7 @@ def _prompt_for_api_key(current_key: str) -> str | None:
         return current_key
 
     if not api_key:
-        print(_color("An API key is required.", Colors.RED))
+        print(_color("An API key is required.", Colors.RED), file=sys.stderr)
         return None
     _warn_if_key_invalid(api_key)
     return api_key
@@ -408,16 +226,15 @@ def _configure_flow(
         print(_color("\nConfiguration cancelled.", Colors.YELLOW))
         return original_config
 
-    new_config: Config = {
-        "api_key": api_key,
-        "text_model": text_model,
-        "vision_model": vision_model,
-    }
+    new_config: Config = config.copy()
+    new_config["api_key"] = api_key
+    new_config["text_model"] = text_model
+    new_config["vision_model"] = vision_model
 
     if save_config(new_config):
         print(_color(f"\n{success_message}", Colors.GREEN))
     else:
-        print(_color("\nError: could not save the configuration.", Colors.RED))
+        print(_color("\nError: could not save the configuration.", Colors.RED), file=sys.stderr)
 
     return new_config
 
@@ -457,7 +274,7 @@ def _ask_file(prompt: str) -> str | None:
             return None
         if Path(path).is_file():
             return path
-        print(_color(f"File not found: {path}", Colors.RED))
+        print(_color(f"File not found: {path}", Colors.RED), file=sys.stderr)
 
 
 def _ask_output(input_file: str) -> str | None:
@@ -476,12 +293,16 @@ def _confirm_overwrite(path: str) -> bool:
     """Ask the user before overwriting an existing file."""
     if not Path(path).exists():
         return True
-    answer = input(
-        _color(
-            f"'{path}' already exists. Overwrite? (y/N): ",
-            Colors.YELLOW,
+    answer = (
+        input(
+            _color(
+                f"'{path}' already exists. Overwrite? (y/N): ",
+                Colors.YELLOW,
+            )
         )
-    ).strip().lower()
+        .strip()
+        .lower()
+    )
     return answer in ("y", "yes")
 
 
@@ -491,10 +312,10 @@ def _run_conversion(input_file: str, output_file: str, api_key: str, model: str)
     if ext in IMAGE_EXTENSIONS and model not in VISION_MODELS:
         print(
             _color(
-                f"Warning: '{model}' is not a vision model. "
-                "Images may not convert correctly.",
+                f"Warning: '{model}' is not a vision model. Images may not convert correctly.",
                 Colors.YELLOW,
-            )
+            ),
+            file=sys.stderr,
         )
 
     print(
@@ -505,15 +326,15 @@ def _run_conversion(input_file: str, output_file: str, api_key: str, model: str)
 
     # Spinner for conversion
     spinner_frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-    stop_spinner = False
+    stop_spinner = threading.Event()
     no_color = bool(os.environ.get("NO_COLOR"))
 
     def spin():
         for frame in itertools.cycle(spinner_frames):
-            if stop_spinner:
+            if stop_spinner.is_set():
                 break
             if no_color:
-                sys.stdout.write(f"\rConverting... ")
+                sys.stdout.write("\rConverting... ")
             else:
                 sys.stdout.write(f"\r{frame} Converting... ")
             sys.stdout.flush()
@@ -526,7 +347,7 @@ def _run_conversion(input_file: str, output_file: str, api_key: str, model: str)
 
     result: ConversionResult = convert_file(input_file, output_file, api_key, model)
 
-    stop_spinner = True
+    stop_spinner.set()
     spinner_thread.join()
 
     if result.cancelled:
@@ -534,7 +355,7 @@ def _run_conversion(input_file: str, output_file: str, api_key: str, model: str)
         return 130
 
     if not result.success:
-        print(_color(f"Error: {result.message}", Colors.RED))
+        print(_color(f"Error: {result.message}", Colors.RED), file=sys.stderr)
         return 1
 
     print(_color(f"Done: {result.output_path}", Colors.GREEN))
@@ -558,7 +379,12 @@ def convert_menu_option(config: Config, file_kind: str) -> int:
         print(_color("Cancelled.", Colors.YELLOW))
         return 0
     model = _model_for_file(config, input_file)
-    return _run_conversion(input_file, output_file, config["api_key"], model)
+    api_key = config.get("api_key", "")
+    if not api_key:
+        print(_color("Error: API key not configured.", Colors.RED), file=sys.stderr)
+        print("Run: python markitdown_for_everyone.py --configure", file=sys.stderr)
+        return 1
+    return _run_conversion(input_file, output_file, api_key, model)
 
 
 def _pause(message: str = "Press Enter to continue...") -> None:
@@ -646,13 +472,13 @@ def quick_convert(args: argparse.Namespace, config: Config) -> int:
     """Run a quick conversion from command-line arguments."""
     api_key = (args.api_key or config.get("api_key", "")).strip()
     if not api_key:
-        print(_color("Error: API key not configured.", Colors.RED))
-        print("Run: python markitdown_for_everyone.py --configure")
+        print(_color("Error: API key not configured.", Colors.RED), file=sys.stderr)
+        print("Run: python markitdown_for_everyone.py --configure", file=sys.stderr)
         return 1
 
     input_file = args.input_file
     if not input_file or not Path(input_file).is_file():
-        print(_color(f"Error: file not found: {input_file}", Colors.RED))
+        print(_color(f"Error: file not found: {input_file}", Colors.RED), file=sys.stderr)
         return 1
 
     model = (args.model or _model_for_file(config, input_file)).strip()
@@ -689,7 +515,13 @@ def main(argv: list[str] | None = None) -> int:
         if _is_first_run(config):
             config = setup_wizard(config)
             if _is_first_run(config):
-                print(_color("\nAn API key is required to use the program.", Colors.YELLOW))
+                print(
+                    _color(
+                        "\nAn API key is required to use the program.",
+                        Colors.YELLOW,
+                    ),
+                    file=sys.stderr,
+                )
                 return 0
 
         return show_menu(config)

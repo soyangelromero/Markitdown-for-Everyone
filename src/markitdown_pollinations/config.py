@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import TypedDict
 
@@ -12,6 +13,7 @@ from platformdirs import user_config_dir
 
 class Config(TypedDict):
     """Configuration type hint."""
+
     api_key: str
     text_model: str
     vision_model: str
@@ -49,15 +51,15 @@ def load_config() -> Config:
         with open(CONFIG_FILE, encoding="utf-8") as f:
             config = json.load(f)
             if not isinstance(config, dict):
-                print("Warning: Config file is not a dict, using defaults")
+                print("Warning: Config file is not a dict, using defaults", file=sys.stderr)
                 return DEFAULT_CONFIG.copy()
             merged = {**DEFAULT_CONFIG, **config}
             return merged
     except json.JSONDecodeError as e:
-        print(f"Warning: Config file contains invalid JSON: {e}")
+        print(f"Warning: Config file contains invalid JSON: {e}", file=sys.stderr)
         return DEFAULT_CONFIG.copy()
-    except (IOError, OSError) as e:
-        print(f"Warning: Could not read config file: {e}")
+    except OSError as e:
+        print(f"Warning: Could not read config file: {e}", file=sys.stderr)
         return DEFAULT_CONFIG.copy()
 
 
@@ -84,6 +86,6 @@ def save_config(config: Config) -> bool:
             except (OSError, AttributeError):
                 pass
         return True
-    except (IOError, OSError) as e:
-        print(f"Error: Could not save config file: {e}")
+    except OSError as e:
+        print(f"Error: Could not save config file: {e}", file=sys.stderr)
         return False
