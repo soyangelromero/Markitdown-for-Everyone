@@ -306,8 +306,19 @@ def _confirm_overwrite(path: str) -> bool:
     return answer in ("y", "yes")
 
 
-def _run_conversion(input_file: str, output_file: str, api_key: str, model: str) -> int:
-    """Run a single conversion and print the result."""
+def _run_conversion(
+    input_file: str,
+    output_file: str,
+    api_key: str,
+    model: str,
+    vision_model: str | None = None,
+) -> int:
+    """Run a single conversion and print the result.
+
+    If the conversion produces empty content for a non-image file (e.g. a
+    scanned PDF with no selectable text) and a *vision_model* is provided,
+    the function automatically retries with that vision model.
+    """
     ext = Path(input_file).suffix.lower()
     if ext in IMAGE_EXTENSIONS and model not in VISION_MODELS:
         print(
@@ -342,13 +353,36 @@ def _run_conversion(input_file: str, output_file: str, api_key: str, model: str)
         sys.stdout.write("\r" + " " * 30 + "\r")
         sys.stdout.flush()
 
-    spinner_thread = threading.Thread(target=spin)
-    spinner_thread.start()
+    def _run(which_model: str) -> ConversionResult:
+        stop_spinner.clear()
+        spinner_thread = threading.Thread(target=spin)
+        spinner_thread.start()
+        try:
+            return convert_file(input_file, output_file, api_key, which_model)
+        finally:
+            stop_spinner.set()
+            spinner_thread.join()
 
-    result: ConversionResult = convert_file(input_file, output_file, api_key, model)
+    result = _run(model)
 
-    stop_spinner.set()
-    spinner_thread.join()
+    # Empty content on a non-image file?  Retry with the vision model.
+    if (
+        result.success
+        and result.warning
+        and vision_model is not None
+        and vision_model != model
+        and ext not in IMAGE_EXTENSIONS
+    ):
+        print(
+            _color(
+                "\nNo text found — retrying with vision model "
+                f"'{vision_model}'...",
+                Colors.YELLOW,
+            ),
+        )
+        vision_result = _run(vision_model)
+        if vision_result.success and not vision_result.warning:
+            result = vision_result
 
     if result.cancelled:
         print(_color("Conversion cancelled.", Colors.YELLOW))
@@ -384,7 +418,10 @@ def convert_menu_option(config: Config, file_kind: str) -> int:
         print(_color("Error: API key not configured.", Colors.RED), file=sys.stderr)
         print("Run: python markitdown_for_everyone.py --configure", file=sys.stderr)
         return 1
-    return _run_conversion(input_file, output_file, api_key, model)
+    return _run_conversion(
+        input_file, output_file, api_key, model,
+        vision_model=config.get("vision_model"),
+    )
 
 
 def _pause(message: str = "Press Enter to continue...") -> None:
@@ -486,7 +523,10 @@ def quick_convert(args: argparse.Namespace, config: Config) -> int:
     if not _confirm_overwrite(output_file):
         print(_color("Conversion cancelled.", Colors.YELLOW))
         return 0
-    return _run_conversion(input_file, output_file, api_key, model)
+    return _run_conversion(
+        input_file, output_file, api_key, model,
+        vision_model=config.get("vision_model"),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -77,6 +77,7 @@ def save_config(config: Config) -> bool:
         Does not raise exceptions.
     """
     try:
+        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
         # Restrict permissions on Unix-like systems. Best-effort on Windows.
