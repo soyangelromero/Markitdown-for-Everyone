@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from markitdown import (
@@ -25,7 +24,6 @@ from openai import (
 )
 
 from markitdown_pollinations.pollinations_client import create_client
-
 
 MAX_RETRIES = 3
 RETRY_DELAYS = [1, 2, 4]
@@ -68,7 +66,9 @@ def convert_file(
             md = MarkItDown(
                 llm_client=client,
                 llm_model=model,
-                llm_prompt="Describe this image in detail, including any text, objects, and context.",
+                llm_prompt=(
+                    "Describe this image in detail, including any text, objects, and context."
+                ),
             )
 
             result = md.convert(input_file)
@@ -82,7 +82,7 @@ def convert_file(
 
             try:
                 Path(output_file).write_text(content, encoding="utf-8")
-            except (IOError, OSError) as e:
+            except OSError as e:
                 return ConversionResult(
                     success=False,
                     message=f"Could not write output file: {e}",
@@ -104,7 +104,9 @@ def convert_file(
             last_error = e
             if attempt < MAX_RETRIES:
                 delay = RETRY_DELAYS[attempt - 1]
-                print(f"Connection error (attempt {attempt}/{MAX_RETRIES}). Retrying in {delay}s...")
+                print(
+                    f"Connection error (attempt {attempt}/{MAX_RETRIES}). Retrying in {delay}s..."
+                )
                 time.sleep(delay)
             else:
                 return ConversionResult(

@@ -11,9 +11,7 @@ from markitdown_pollinations.config import load_config, save_config
 def isolated_config(monkeypatch, tmp_path):
     """Redirect CONFIG_FILE to a temporary path."""
     config_path = tmp_path / "config.json"
-    monkeypatch.setattr(
-        "markitdown_pollinations.config.CONFIG_FILE", config_path
-    )
+    monkeypatch.setattr("markitdown_pollinations.config.CONFIG_FILE", config_path)
     return config_path
 
 
@@ -106,9 +104,7 @@ def test_load_config_fills_missing_keys_with_defaults(isolated_config):
 def test_save_config_returns_false_on_write_error(isolated_config):
     with patch("builtins.open", mock_open()) as mocked:
         mocked.return_value.write.side_effect = OSError("permission denied")
-        assert save_config(
-            {"api_key": "x", "text_model": "y", "vision_model": "z"}
-        ) is False
+        assert save_config({"api_key": "x", "text_model": "y", "vision_model": "z"}) is False
 
 
 def test_save_config_sets_unix_permissions(isolated_config, monkeypatch):
@@ -120,9 +116,10 @@ def test_save_config_sets_unix_permissions(isolated_config, monkeypatch):
     monkeypatch.setattr("os.chmod", fake_chmod)
     monkeypatch.setattr("os.name", "posix")
 
-    assert save_config(
-        {"api_key": "sk_test", "text_model": "openai", "vision_model": "openai"}
-    ) is True
+    assert (
+        save_config({"api_key": "sk_test", "text_model": "openai", "vision_model": "openai"})
+        is True
+    )
     assert len(chmod_calls) == 1
     assert chmod_calls[0][1] == 0o600
 
@@ -136,7 +133,8 @@ def test_save_config_skips_chmod_on_windows(isolated_config, monkeypatch):
     monkeypatch.setattr("os.chmod", fake_chmod)
     monkeypatch.setattr("os.name", "nt")
 
-    assert save_config(
-        {"api_key": "sk_test", "text_model": "openai", "vision_model": "openai"}
-    ) is True
+    assert (
+        save_config({"api_key": "sk_test", "text_model": "openai", "vision_model": "openai"})
+        is True
+    )
     assert len(chmod_calls) == 0
