@@ -3,7 +3,11 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
+from markitdown import (
+    FileConversionException,
+    MissingDependencyException,
+    UnsupportedFormatException,
+)
 from openai import (
     APIConnectionError,
     APIError,
@@ -11,11 +15,6 @@ from openai import (
     AuthenticationError,
     NotFoundError,
     RateLimitError,
-)
-from markitdown import (
-    FileConversionException,
-    MissingDependencyException,
-    UnsupportedFormatException,
 )
 
 from markitdown_pollinations.converter import convert_file
@@ -131,9 +130,7 @@ def test_convert_not_found_error(tmp_path):
     output_file = tmp_path / "output.md"
 
     with patch("markitdown_pollinations.converter.create_client") as mock_create:
-        mock_create.side_effect = NotFoundError(
-            "not found", response=MagicMock(), body=None
-        )
+        mock_create.side_effect = NotFoundError("not found", response=MagicMock(), body=None)
 
         result = convert_file(str(input_file), str(output_file), "key", "openai")
 
@@ -146,9 +143,7 @@ def test_convert_rate_limit_error(tmp_path):
     output_file = tmp_path / "output.md"
 
     with patch("markitdown_pollinations.converter.create_client") as mock_create:
-        mock_create.side_effect = RateLimitError(
-            "rate limited", response=MagicMock(), body=None
-        )
+        mock_create.side_effect = RateLimitError("rate limited", response=MagicMock(), body=None)
 
         result = convert_file(str(input_file), str(output_file), "key", "openai")
 

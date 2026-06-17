@@ -10,4 +10,3 @@ from markitdown_pollinations.constants import POLLINATIONS_BASE_URL
 def create_client(api_key: str) -> OpenAI:
     """Create an OpenAI client configured for Pollinations."""
     return OpenAI(base_url=POLLINATIONS_BASE_URL, api_key=api_key)
-
