@@ -80,7 +80,7 @@ After the first run, running the program shows a simple menu:
 
 Pick a number, enter the file path, and the program does the rest. If the output file already exists, the program asks before overwriting.
 
-## Quick conversion (advanced)
+## Quick conversion 
 
 If you already know the file you want, you can convert it directly:
 
