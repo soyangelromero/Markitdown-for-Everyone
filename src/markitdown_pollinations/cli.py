@@ -380,7 +380,6 @@ def _run_conversion(
         result.success
         and result.warning
         and vision_model is not None
-        and vision_model != model
         and ext not in IMAGE_EXTENSIONS
     ):
         print(

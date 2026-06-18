@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "markitdown[all]>=0.1.6,<1.0",
+    "markitdown-ocr>=0.1.0,<1.0",
     "openai>=2.0.0,<3.0",
     "platformdirs>=4.0.0,<6.0",
 ]
