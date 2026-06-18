@@ -19,6 +19,7 @@ from markitdown_pollinations.constants import (
     Colors,
     _color,
 )
+from markitdown_pollinations.i18n import _
 
 _KeyValidationResult = Literal["valid", "invalid", "unknown"]
 
@@ -28,20 +29,12 @@ def _warn_if_key_invalid(api_key: str) -> None:
     valid_prefix = api_key.startswith(("sk_", "sk-"))
     if not valid_prefix:
         print(
-            _color(
-                "Warning: API keys usually start with 'sk_' or 'sk-'. "
-                "Get your key at https://enter.pollinations.ai",
-                Colors.YELLOW,
-            ),
+            _color(_("key_format_warning"), Colors.YELLOW),
             file=sys.stderr,
         )
     elif len(api_key) < 12:
         print(
-            _color(
-                "Warning: The API key seems too short. "
-                "Get your key at https://enter.pollinations.ai",
-                Colors.YELLOW,
-            ),
+            _color(_("key_short_warning"), Colors.YELLOW),
             file=sys.stderr,
         )
 
@@ -77,12 +70,12 @@ def _validate_key_via_api(api_key: str) -> _KeyValidationResult:
                 if balance is not None:
                     print(
                         _color(
-                            f"API key is valid. Balance: {balance} pollen",
+                            _("key_valid_balance").format(balance=balance),
                             Colors.GREEN,
                         )
                     )
                 else:
-                    print(_color("API key is valid.", Colors.GREEN))
+                    print(_color(_("key_valid"), Colors.GREEN))
                 return "valid"
             except json.JSONDecodeError:
                 pass  # Non-JSON response; fall through to chat completion.
@@ -96,10 +89,7 @@ def _validate_key_via_api(api_key: str) -> _KeyValidationResult:
 
         if e.code == 401:
             print(
-                _color(
-                    "Invalid API key. Get your key at https://enter.pollinations.ai",
-                    Colors.YELLOW,
-                ),
+                _color(_("key_invalid"), Colors.YELLOW),
                 file=sys.stderr,
             )
             return "invalid"
@@ -128,11 +118,11 @@ def _validate_key_via_api(api_key: str) -> _KeyValidationResult:
         )
         with urllib.request.urlopen(req, timeout=VALIDATION_TIMEOUT_SECONDS) as resp:
             if resp.status == 200:
-                print(_color("API key verified successfully.", Colors.GREEN))
+                print(_color(_("key_verified"), Colors.GREEN))
                 return "valid"
             body = resp.read().decode()
             msg = json.loads(body).get("error", {}).get("message", "Unknown error")
-            print(_color(f"Warning: {msg}", Colors.YELLOW), file=sys.stderr)
+            print(_color(_("warning_prefix").format(warning=msg), Colors.YELLOW), file=sys.stderr)
             return "unknown"
 
     except urllib.error.HTTPError as e:
@@ -144,34 +134,22 @@ def _validate_key_via_api(api_key: str) -> _KeyValidationResult:
 
         if e.code == 401:
             print(
-                _color(
-                    "Invalid API key. Get your key at https://enter.pollinations.ai",
-                    Colors.YELLOW,
-                ),
+                _color(_("key_invalid"), Colors.YELLOW),
                 file=sys.stderr,
             )
             return "invalid"
         if e.code == 402:
             print(
-                _color(
-                    "Warning: Insufficient pollen balance. Your key is valid, but "
-                    "you will need to top up at https://enter.pollinations.ai before "
-                    "converting files.",
-                    Colors.YELLOW,
-                ),
+                _color(_("key_insufficient_balance"), Colors.YELLOW),
                 file=sys.stderr,
             )
             return "valid"
-        print(_color(f"Warning: {msg}", Colors.YELLOW), file=sys.stderr)
+        print(_color(_("warning_prefix").format(warning=msg), Colors.YELLOW), file=sys.stderr)
         return "unknown"
 
     except (urllib.error.URLError, TimeoutError, OSError):
         print(
-            _color(
-                "Warning: Could not connect to Pollinations API to validate "
-                "the key. Check your internet connection.",
-                Colors.YELLOW,
-            ),
+            _color(_("key_connection_error"), Colors.YELLOW),
             file=sys.stderr,
         )
         return "unknown"

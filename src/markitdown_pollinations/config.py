@@ -10,6 +10,8 @@ from typing import TypedDict
 
 from platformdirs import user_config_dir
 
+from markitdown_pollinations.i18n import _
+
 
 class Config(TypedDict):
     """Configuration type hint."""
@@ -17,6 +19,7 @@ class Config(TypedDict):
     api_key: str
     text_model: str
     vision_model: str
+    language: str
 
 
 CONFIG_FILE = Path(user_config_dir("markitdown-for-everyone", "AngelRomero")) / "config.json"
@@ -25,6 +28,7 @@ DEFAULT_CONFIG: Config = {
     "api_key": "",
     "text_model": "openai",
     "vision_model": "openai",
+    "language": "en",
 }
 
 
@@ -51,15 +55,15 @@ def load_config() -> Config:
         with open(CONFIG_FILE, encoding="utf-8") as f:
             config = json.load(f)
             if not isinstance(config, dict):
-                print("Warning: Config file is not a dict, using defaults", file=sys.stderr)
+                print(_("config_warn_not_dict"), file=sys.stderr)
                 return DEFAULT_CONFIG.copy()
             merged = {**DEFAULT_CONFIG, **config}
             return merged
     except json.JSONDecodeError as e:
-        print(f"Warning: Config file contains invalid JSON: {e}", file=sys.stderr)
+        print(_("config_warn_invalid_json").format(error=e), file=sys.stderr)
         return DEFAULT_CONFIG.copy()
     except OSError as e:
-        print(f"Warning: Could not read config file: {e}", file=sys.stderr)
+        print(_("config_warn_cannot_read").format(error=e), file=sys.stderr)
         return DEFAULT_CONFIG.copy()
 
 
@@ -88,5 +92,5 @@ def save_config(config: Config) -> bool:
                 pass
         return True
     except OSError as e:
-        print(f"Error: Could not save config file: {e}", file=sys.stderr)
+        print(_("config_error_save").format(error=e), file=sys.stderr)
         return False

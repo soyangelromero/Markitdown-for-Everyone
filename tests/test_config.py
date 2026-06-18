@@ -6,6 +6,13 @@ import pytest
 
 from markitdown_pollinations.config import load_config, save_config
 
+DEFAULT = {
+    "api_key": "",
+    "text_model": "openai",
+    "vision_model": "openai",
+    "language": "en",
+}
+
 
 @pytest.fixture
 def isolated_config(monkeypatch, tmp_path):
@@ -16,29 +23,17 @@ def isolated_config(monkeypatch, tmp_path):
 
 
 def test_load_config_returns_defaults_when_missing(isolated_config):
-    assert load_config() == {
-        "api_key": "",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
+    assert load_config() == DEFAULT
 
 
 def test_load_config_returns_defaults_on_invalid_json(isolated_config):
     isolated_config.write_text("not valid json", encoding="utf-8")
-    assert load_config() == {
-        "api_key": "",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
+    assert load_config() == DEFAULT
 
 
 def test_load_config_returns_defaults_when_not_a_dict(isolated_config):
     isolated_config.write_text("[1, 2, 3]", encoding="utf-8")
-    assert load_config() == {
-        "api_key": "",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
+    assert load_config() == DEFAULT
 
 
 def test_save_and_load_config_round_trip(isolated_config):
@@ -46,6 +41,7 @@ def test_save_and_load_config_round_trip(isolated_config):
         "api_key": "sk_test",
         "text_model": "claude",
         "vision_model": "openai-large",
+        "language": "en",
     }
     assert save_config(config) is True
     assert load_config() == config
@@ -56,11 +52,9 @@ def test_load_config_returns_valid_config(isolated_config):
         '{"api_key": "pk_test", "text_model": "gemini", "vision_model": "gemini-large"}',
         encoding="utf-8",
     )
-    assert load_config() == {
-        "api_key": "pk_test",
-        "text_model": "gemini",
-        "vision_model": "gemini-large",
-    }
+    expected = DEFAULT.copy()
+    expected.update({"api_key": "pk_test", "text_model": "gemini", "vision_model": "gemini-large"})
+    assert load_config() == expected
 
 
 def test_load_config_uses_env_api_key(isolated_config, monkeypatch):
@@ -69,11 +63,9 @@ def test_load_config_uses_env_api_key(isolated_config, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setenv("POLLINATIONS_API_KEY", "env_key")
-    assert load_config() == {
-        "api_key": "env_key",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
+    expected = DEFAULT.copy()
+    expected["api_key"] = "env_key"
+    assert load_config() == expected
 
 
 def test_load_config_ignores_empty_env_api_key(isolated_config, monkeypatch):
@@ -82,11 +74,9 @@ def test_load_config_ignores_empty_env_api_key(isolated_config, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setenv("POLLINATIONS_API_KEY", "   ")
-    assert load_config() == {
-        "api_key": "file_key",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
+    expected = DEFAULT.copy()
+    expected["api_key"] = "file_key"
+    assert load_config() == expected
 
 
 def test_load_config_fills_missing_keys_with_defaults(isolated_config):
@@ -99,12 +89,13 @@ def test_load_config_fills_missing_keys_with_defaults(isolated_config):
     assert result["api_key"] == "pk_partial"
     assert result["text_model"] == "openai"
     assert result["vision_model"] == "openai"
+    assert result["language"] == "en"
 
 
 def test_save_config_returns_false_on_write_error(isolated_config):
     with patch("builtins.open", mock_open()) as mocked:
         mocked.return_value.write.side_effect = OSError("permission denied")
-        assert save_config({"api_key": "x", "text_model": "y", "vision_model": "z"}) is False
+        assert save_config({"api_key": "x", "text_model": "y", "vision_model": "z", "language": "en"}) is False  # noqa: E501
 
 
 def test_save_config_sets_unix_permissions(isolated_config, monkeypatch):
@@ -117,7 +108,7 @@ def test_save_config_sets_unix_permissions(isolated_config, monkeypatch):
     monkeypatch.setattr("os.name", "posix")
 
     assert (
-        save_config({"api_key": "sk_test", "text_model": "openai", "vision_model": "openai"})
+        save_config({"api_key": "sk_test", "text_model": "openai", "vision_model": "openai", "language": "en"})  # noqa: E501
         is True
     )
     assert len(chmod_calls) == 1
@@ -134,7 +125,7 @@ def test_save_config_skips_chmod_on_windows(isolated_config, monkeypatch):
     monkeypatch.setattr("os.name", "nt")
 
     assert (
-        save_config({"api_key": "sk_test", "text_model": "openai", "vision_model": "openai"})
+        save_config({"api_key": "sk_test", "text_model": "openai", "vision_model": "openai", "language": "en"})  # noqa: E501
         is True
     )
     assert len(chmod_calls) == 0
