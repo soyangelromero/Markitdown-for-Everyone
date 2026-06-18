@@ -95,7 +95,7 @@ def _select_language() -> str:
     print(f"  1. {_('language_en')}")
     print(f"  2. {_('language_es')}")
     while True:
-        choice = input("Select: ").strip()
+        choice = input(_("select")).strip()
         if choice == "1":
             return "en"
         if choice == "2":
@@ -113,9 +113,9 @@ def _prompt_for_api_key(current_key: str) -> str | None:
     value when no existing key is available (after printing a warning).
     """
     if current_key:
-        prompt = f"Pollinations API key [{_mask_key(current_key)}]: "
+        prompt = f"{_('api_key_prompt')} [{_mask_key(current_key)}]: "
     else:
-        prompt = "Pollinations API key: "
+        prompt = f"{_('api_key_prompt')}: "
 
     try:
         api_key = getpass.getpass(prompt).strip()
@@ -162,7 +162,7 @@ def _ask_model(prompt: str, recommendations: list[str], default: str) -> str | N
     Type 'c', 'cancel', 'b', or 'back' to abort this screen.
     """
     print(_color(f"\n{prompt}", Colors.CYAN))
-    print("Recommended:")
+    print(_("recommended"))
     for idx, model in enumerate(recommendations, start=1):
         marker = "*" if model == default else " "
         print(f"  {idx}. {marker} {model}")
@@ -170,7 +170,7 @@ def _ask_model(prompt: str, recommendations: list[str], default: str) -> str | N
     print(f"  {_('cancel_back')}")
 
     while True:
-        choice = input("Select: ").strip()
+        choice = input(_("select")).strip()
         if _is_cancel_input(choice):
             return None
         if choice == "0":
