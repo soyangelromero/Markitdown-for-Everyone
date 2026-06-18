@@ -128,6 +128,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "config_warn_invalid_json": "Warning: Config file contains invalid JSON: {error}",
         "config_warn_cannot_read": "Warning: Could not read config file: {error}",
         "config_error_save": "Error: Could not save config file: {error}",
+        # Prompts / labels
+        "api_key_prompt": "Pollinations API key",
+        "recommended": "Recommended:",
+        "select": "Select: ",
         # Misc
         "press_enter_continue": "Press Enter to continue...",
         "conversion_empty_warning": "Conversion succeeded but produced no content.",
@@ -242,6 +246,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Advertencia: No se pudo leer el archivo de configuración: {error}"
         ),
         "config_error_save": "Error: No se pudo guardar el archivo de configuración: {error}",
+        # Prompts / labels
+        "api_key_prompt": "Clave de API de Pollinations",
+        "recommended": "Recomendados:",
+        "select": "Seleccione: ",
         # Misc
         "press_enter_continue": "Presione Enter para continuar...",
         "conversion_empty_warning": "La conversión se completó pero no produjo contenido.",
