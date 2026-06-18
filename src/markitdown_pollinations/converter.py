@@ -23,6 +23,7 @@ from openai import (
     RateLimitError,
 )
 
+from markitdown_pollinations.i18n import _
 from markitdown_pollinations.pollinations_client import create_client
 
 MAX_RETRIES = 3
@@ -76,7 +77,7 @@ def convert_file(
             content = result.markdown
 
             if not content:
-                warning = "Conversion succeeded but produced no content."
+                warning = _("conversion_empty_warning")
             else:
                 warning = ""
 
@@ -85,7 +86,7 @@ def convert_file(
             except OSError as e:
                 return ConversionResult(
                     success=False,
-                    message=f"Could not write output file: {e}",
+                    message=_("write_error").format(error=e),
                 )
 
             return ConversionResult(
@@ -97,7 +98,7 @@ def convert_file(
         except (AuthenticationError, PermissionDeniedError):
             return ConversionResult(
                 success=False,
-                message="Invalid API key. Get your key at https://enter.pollinations.ai",
+                message=_("auth_error"),
             )
 
         except (APIConnectionError, APITimeoutError) as e:
@@ -105,67 +106,71 @@ def convert_file(
             if attempt < MAX_RETRIES:
                 delay = RETRY_DELAYS[attempt - 1]
                 print(
-                    f"Connection error (attempt {attempt}/{MAX_RETRIES}). Retrying in {delay}s..."
+                    _("conn_error_retry").format(
+                        attempt=attempt, max_retries=MAX_RETRIES, delay=delay
+                    )
                 )
                 time.sleep(delay)
             else:
                 return ConversionResult(
                     success=False,
-                    message="Connection error. Please check your internet connection.",
+                    message=_("conn_error_fatal"),
                 )
 
         except NotFoundError:
             return ConversionResult(
                 success=False,
-                message=f"Model '{model}' not found.",
+                message=_("model_not_found").format(model=model),
             )
 
         except RateLimitError as e:
             return ConversionResult(
                 success=False,
-                message=f"Rate limit exceeded: {e}",
+                message=_("rate_limit").format(error=e),
             )
 
         except APIStatusError as e:
             detail = getattr(e, "message", str(e)) or "Unknown API error"
             return ConversionResult(
                 success=False,
-                message=f"API error ({e.status_code}): {detail}",
+                message=_("api_status_error").format(code=e.status_code, detail=detail),
             )
 
         except APIError as e:
             detail = getattr(e, "message", str(e)) or "Unknown API error"
             return ConversionResult(
                 success=False,
-                message=f"API error: {detail}",
+                message=_("api_error").format(detail=detail),
             )
 
         except UnsupportedFormatException:
             return ConversionResult(
                 success=False,
-                message=f"Unsupported file format: {Path(input_file).suffix}",
+                message=_("unsupported_format").format(ext=Path(input_file).suffix),
             )
 
         except FileConversionException as e:
             return ConversionResult(
                 success=False,
-                message=f"Conversion failed: {e}",
+                message=_("conversion_failed").format(error=e),
             )
 
         except MissingDependencyException as e:
             return ConversionResult(
                 success=False,
-                message=f"Missing dependency: {e}",
+                message=_("missing_dep").format(error=e),
             )
 
         except Exception as e:  # noqa: BLE001 - last-resort safety net
             return ConversionResult(
                 success=False,
-                message=f"Unexpected error: {e}",
+                message=_("unexpected_error").format(error=e),
             )
 
     # This should never be reached, but safety net
     return ConversionResult(
         success=False,
-        message=f"Unexpected error after {MAX_RETRIES} retries: {last_error}",
+        message=_("unexpected_error_retries").format(
+            max_retries=MAX_RETRIES, error=last_error
+        ),
     )

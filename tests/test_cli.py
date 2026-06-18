@@ -69,13 +69,15 @@ def test_quick_convert_success(mock_load_config, mock_convert_file, temp_file):
     mock_convert_file.assert_called_once()
 
 
+@patch("builtins.input")
 @patch("markitdown_pollinations.cli.load_config")
-def test_quick_convert_missing_api_key(mock_load_config, temp_file):
+def test_quick_convert_missing_api_key(mock_load_config, mock_input, temp_file):
     mock_load_config.return_value = {
         "api_key": "",
         "text_model": "openai",
         "vision_model": "openai",
     }
+    mock_input.return_value = "1"  # language selector -> English
 
     code = main([temp_file])
 
@@ -98,6 +100,7 @@ def test_setup_wizard_first_run(
     }
     mock_getpass.return_value = "sk-secret-key-123"
     mock_input.side_effect = [
+        "1",  # language selector -> English
         "1",  # text model -> openai
         "1",  # vision model -> openai
     ]
@@ -109,7 +112,7 @@ def test_setup_wizard_first_run(
 
     assert code == 0
     mock_save_config.assert_called_once_with(
-        {"api_key": "sk-secret-key-123", "text_model": "openai", "vision_model": "openai"}
+        {"api_key": "sk-secret-key-123", "text_model": "openai", "vision_model": "openai", "language": "en"}  # noqa: E501
     )
 
 
@@ -129,6 +132,7 @@ def test_configure_menu_updates_settings(
     }
     mock_getpass.return_value = "sk-new-key-12345"
     mock_input.side_effect = [
+        "1",  # language selector -> English
         "1",  # text model -> openai
         "2",  # vision model -> openai-large
     ]
@@ -143,6 +147,7 @@ def test_configure_menu_updates_settings(
             "api_key": "sk-new-key-12345",
             "text_model": "openai",
             "vision_model": "openai-large",
+            "language": "en",
         }
     )
 

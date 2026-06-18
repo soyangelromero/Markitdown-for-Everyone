@@ -22,6 +22,7 @@ from markitdown_pollinations.constants import (
     _color,
 )
 from markitdown_pollinations.converter import ConversionResult, convert_file
+from markitdown_pollinations.i18n import _, set_language
 from markitdown_pollinations.validation import (
     _mask_key,
     _validate_key_via_api,
@@ -87,6 +88,21 @@ def _is_cancel_input(value: str) -> bool:
     return value.strip().lower() in _CANCEL_INPUT
 
 
+def _select_language() -> str:
+    """Show language selector and return the chosen language code."""
+    print(_color(f"\n{_('language_title')}", Colors.CYAN))
+    print(_("language_prompt"))
+    print(f"  1. {_('language_en')}")
+    print(f"  2. {_('language_es')}")
+    while True:
+        choice = input("Select: ").strip()
+        if choice == "1":
+            return "en"
+        if choice == "2":
+            return "es"
+        print(_color(_("invalid_option"), Colors.YELLOW))
+
+
 def _prompt_for_api_key(current_key: str) -> str | None:
     """Prompt for an API key (warns on format, validates via network).
 
@@ -114,7 +130,7 @@ def _prompt_for_api_key(current_key: str) -> str | None:
         return current_key
 
     if not api_key:
-        print(_color("An API key is required.", Colors.RED), file=sys.stderr)
+        print(_color(_("api_key_required_warn"), Colors.RED), file=sys.stderr)
         return None
     _warn_if_key_invalid(api_key)
     return api_key
@@ -150,21 +166,21 @@ def _ask_model(prompt: str, recommendations: list[str], default: str) -> str | N
     for idx, model in enumerate(recommendations, start=1):
         marker = "*" if model == default else " "
         print(f"  {idx}. {marker} {model}")
-    print("  0. Other (type manually)")
-    print("  c/b. Cancel/Back")
+    print(f"  0. {_('other_model')}")
+    print(f"  {_('cancel_back')}")
 
     while True:
         choice = input("Select: ").strip()
         if _is_cancel_input(choice):
             return None
         if choice == "0":
-            model = _prompt("Enter the model name", default=default).strip()
+            model = _prompt(_("enter_model_name"), default=default).strip()
             if _is_cancel_input(model):
                 return None
             return model or default
         if choice.isdigit() and 1 <= int(choice) <= len(recommendations):
             return recommendations[int(choice) - 1]
-        print(_color("Invalid option. Please try again.", Colors.YELLOW))
+        print(_color(_("invalid_menu_option"), Colors.YELLOW))
 
 
 def _configure_flow(
@@ -192,21 +208,21 @@ def _configure_flow(
 
         api_key = _prompt_for_api_key(config.get("api_key", ""))
         if api_key is None:
-            print(_color("\nConfiguration cancelled.", Colors.YELLOW))
+            print(_color(f"\n{_('config_cancelled')}", Colors.YELLOW))
             return original_config
 
-        print(_color("Validating API key...", Colors.CYAN))
+        print(_color(_("validating_key"), Colors.CYAN))
         result = _validate_key_via_api(api_key)
         if result == "valid":
             break
         if result == "invalid":
             print(
                 _color(
-                    "Please provide a valid API key to continue.",
+                    _("provide_valid_key"),
                     Colors.YELLOW,
                 )
             )
-        _pause("Press Enter to try again...")
+        _pause()
 
     text_model = _ask_model(
         text_prompt,
@@ -214,7 +230,7 @@ def _configure_flow(
         config.get("text_model", "openai"),
     )
     if text_model is None:
-        print(_color("\nConfiguration cancelled.", Colors.YELLOW))
+        print(_color(f"\n{_('config_cancelled')}", Colors.YELLOW))
         return original_config
 
     vision_model = _ask_model(
@@ -223,18 +239,20 @@ def _configure_flow(
         config.get("vision_model", "openai"),
     )
     if vision_model is None:
-        print(_color("\nConfiguration cancelled.", Colors.YELLOW))
+        print(_color(f"\n{_('config_cancelled')}", Colors.YELLOW))
         return original_config
 
     new_config: Config = config.copy()
     new_config["api_key"] = api_key
     new_config["text_model"] = text_model
     new_config["vision_model"] = vision_model
+    # Preserve the language the user already selected
+    new_config["language"] = config.get("language", "en")
 
     if save_config(new_config):
         print(_color(f"\n{success_message}", Colors.GREEN))
     else:
-        print(_color("\nError: could not save the configuration.", Colors.RED), file=sys.stderr)
+        print(_color(f"\n{_('error_save_config')}", Colors.RED), file=sys.stderr)
 
     return new_config
 
@@ -243,11 +261,11 @@ def setup_wizard(config: Config) -> Config:
     """Run the first-time configuration wizard."""
     return _configure_flow(
         config,
-        header="Welcome to Markitdown-for-everyone!",
-        welcome="Let's set up the program so you can start converting files.",
-        text_prompt="Model for text documents (PDF, Word, Excel, etc.)",
-        vision_prompt="Model for images (JPG, PNG, etc.)",
-        success_message="Configuration saved successfully.",
+        header=_("welcome_title"),
+        welcome=_("setup_intro"),
+        text_prompt=_("model_for_text"),
+        vision_prompt=_("model_for_images"),
+        success_message=_("config_saved"),
     )
 
 
@@ -255,21 +273,18 @@ def configure_menu(config: Config) -> Config:
     """Show the configuration menu and update settings."""
     return _configure_flow(
         config,
-        header="--- Configuration ---",
+        header=_("menu_configure"),
         welcome="",
-        text_prompt="Model for text documents",
-        vision_prompt="Model for images",
-        success_message="Configuration updated.",
+        text_prompt=_("model_for_text_short"),
+        vision_prompt=_("model_for_images_short"),
+        success_message=_("config_updated"),
     )
 
 
 def _ask_file(prompt: str) -> str | None:
-    """Prompt for a file path and validate that it exists.
-
-    Type 'c', 'cancel', 'b', or 'back' to abort this screen.
-    """
+    """Prompt for a file path and validate that it exists."""
     while True:
-        path = input(f"{prompt} (or 'c'/'b' to cancel/back): ").strip().strip('"')
+        path = input(f"{prompt} ({_('cancel_back')}): ").strip().strip('"')
         if _is_cancel_input(path):
             return None
         if Path(path).is_file():
@@ -278,12 +293,9 @@ def _ask_file(prompt: str) -> str | None:
 
 
 def _ask_output(input_file: str) -> str | None:
-    """Prompt for an output path with a sensible default.
-
-    Type 'c', 'cancel', 'b', or 'back' to abort this screen.
-    """
+    """Prompt for an output path with a sensible default."""
     default = str(Path(input_file).with_suffix(".md"))
-    path = _prompt("Output file", default=default).strip().strip('"')
+    path = _prompt(_("ask_output"), default=default).strip().strip('"')
     if _is_cancel_input(path):
         return None
     return path or default
@@ -296,7 +308,7 @@ def _confirm_overwrite(path: str) -> bool:
     answer = (
         input(
             _color(
-                f"'{path}' already exists. Overwrite? (y/N): ",
+                _("overwrite_confirm").format(path=path),
                 Colors.YELLOW,
             )
         )
@@ -323,16 +335,14 @@ def _run_conversion(
     if ext in IMAGE_EXTENSIONS and model not in VISION_MODELS:
         print(
             _color(
-                f"Warning: '{model}' is not a vision model. Images may not convert correctly.",
+                _("not_vision_warning").format(model=model),
                 Colors.YELLOW,
             ),
             file=sys.stderr,
         )
 
     print(
-        f"\nConverting {_color(input_file, Colors.CYAN)} "
-        f"-> {_color(output_file, Colors.CYAN)} "
-        f"using model {_color(model, Colors.CYAN)}..."
+        f"\n{_('converting').format(input=input_file, output=output_file, model=model)}"
     )
 
     # Spinner for conversion
@@ -345,9 +355,9 @@ def _run_conversion(
             if stop_spinner.is_set():
                 break
             if no_color:
-                sys.stdout.write("\rConverting... ")
+                sys.stdout.write(f"\r{_('spinner_text')}")
             else:
-                sys.stdout.write(f"\r{frame} Converting... ")
+                sys.stdout.write(f"\r{frame} {_('spinner_text')}")
             sys.stdout.flush()
             time.sleep(0.1)
         sys.stdout.write("\r" + " " * 30 + "\r")
@@ -375,8 +385,7 @@ def _run_conversion(
     ):
         print(
             _color(
-                "\nNo text found — retrying with vision model "
-                f"'{vision_model}'...",
+                _("no_text_found").format(model=vision_model),
                 Colors.YELLOW,
             ),
         )
@@ -385,38 +394,39 @@ def _run_conversion(
             result = vision_result
 
     if result.cancelled:
-        print(_color("Conversion cancelled.", Colors.YELLOW))
+        print(_color(_("conversion_cancelled"), Colors.YELLOW))
         return 130
 
     if not result.success:
-        print(_color(f"Error: {result.message}", Colors.RED), file=sys.stderr)
+        print(_color(_("error_prefix").format(message=result.message), Colors.RED), file=sys.stderr)
         return 1
 
-    print(_color(f"Done: {result.output_path}", Colors.GREEN))
+    print(_color(_("done").format(output=result.output_path), Colors.GREEN))
     if result.warning:
-        print(_color(f"Warning: {result.warning}", Colors.YELLOW))
+        print(_color(_("warning_prefix").format(warning=result.warning), Colors.YELLOW))
     return 0
 
 
 def convert_menu_option(config: Config, file_kind: str) -> int:
     """Handle a conversion option from the main menu."""
-    print(_color(f"\n--- Convert {file_kind} to Markdown ---", Colors.CYAN))
-    input_file = _ask_file("File path")
+    kind_i18n = _("file_kind_" + file_kind.lower())
+    print(_color(_("convert_title").format(kind=kind_i18n), Colors.CYAN))
+    input_file = _ask_file(_("ask_file"))
     if input_file is None:
-        print(_color("Cancelled.", Colors.YELLOW))
+        print(_color(_("cancelled"), Colors.YELLOW))
         return 0
     output_file = _ask_output(input_file)
     if output_file is None:
-        print(_color("Cancelled.", Colors.YELLOW))
+        print(_color(_("cancelled"), Colors.YELLOW))
         return 0
     if not _confirm_overwrite(output_file):
-        print(_color("Cancelled.", Colors.YELLOW))
+        print(_color(_("cancelled"), Colors.YELLOW))
         return 0
     model = _model_for_file(config, input_file)
     api_key = config.get("api_key", "")
     if not api_key:
-        print(_color("Error: API key not configured.", Colors.RED), file=sys.stderr)
-        print("Run: python markitdown_for_everyone.py --configure", file=sys.stderr)
+        print(_color(_("api_key_not_configured"), Colors.RED), file=sys.stderr)
+        print(_("run_configure"), file=sys.stderr)
         return 1
     return _run_conversion(
         input_file, output_file, api_key, model,
@@ -424,10 +434,10 @@ def convert_menu_option(config: Config, file_kind: str) -> int:
     )
 
 
-def _pause(message: str = "Press Enter to continue...") -> None:
+def _pause(message: str | None = None) -> None:
     """Wait for the user to press Enter."""
     try:
-        input(_color(message, Colors.CYAN))
+        input(_color(message or _("press_enter_continue"), Colors.CYAN))
     except EOFError:
         pass
 
@@ -435,17 +445,17 @@ def _pause(message: str = "Press Enter to continue...") -> None:
 def show_menu(config: Config) -> int:
     """Display the interactive menu and handle choices."""
     while True:
-        print(_color("\n--- Menu ---", Colors.CYAN))
-        print("1. Convert PDF to Markdown")
-        print("2. Convert Image to Markdown")
-        print("3. Convert Document to Markdown")
-        print("4. Configure API key and models")
-        print("5. Exit")
+        print(_color(f"\n{_('menu_title')}", Colors.CYAN))
+        print(_("menu_convert_pdf"))
+        print(_("menu_convert_image"))
+        print(_("menu_convert_document"))
+        print(_("menu_configure"))
+        print(_("menu_exit"))
 
-        choice = input("\nChoose an option: ").strip()
+        choice = input(_("choose_option")).strip()
 
         if choice == "5":
-            print(_color("\nGoodbye!", Colors.GREEN))
+            print(_color(f"\n{_('goodbye')}", Colors.GREEN))
             return 0
         if choice == "1":
             convert_menu_option(config, "PDF")
@@ -454,9 +464,12 @@ def show_menu(config: Config) -> int:
         elif choice == "3":
             convert_menu_option(config, "Document")
         elif choice == "4":
+            chosen = _select_language()
+            config["language"] = chosen
+            set_language(chosen)
             config = configure_menu(config)
         else:
-            print(_color("Invalid option. Please try again.", Colors.YELLOW))
+            print(_color(_("invalid_menu_option"), Colors.YELLOW))
             _pause()
             continue
 
@@ -509,8 +522,8 @@ def quick_convert(args: argparse.Namespace, config: Config) -> int:
     """Run a quick conversion from command-line arguments."""
     api_key = (args.api_key or config.get("api_key", "")).strip()
     if not api_key:
-        print(_color("Error: API key not configured.", Colors.RED), file=sys.stderr)
-        print("Run: python markitdown_for_everyone.py --configure", file=sys.stderr)
+        print(_color(_("api_key_not_configured"), Colors.RED), file=sys.stderr)
+        print(_("run_configure"), file=sys.stderr)
         return 1
 
     input_file = args.input_file
@@ -521,7 +534,7 @@ def quick_convert(args: argparse.Namespace, config: Config) -> int:
     model = (args.model or _model_for_file(config, input_file)).strip()
     output_file = args.output_file or str(Path(input_file).with_suffix(".md"))
     if not _confirm_overwrite(output_file):
-        print(_color("Conversion cancelled.", Colors.YELLOW))
+        print(_color(_("conversion_cancelled"), Colors.YELLOW))
         return 0
     return _run_conversion(
         input_file, output_file, api_key, model,
@@ -534,13 +547,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         _enable_ansi_windows()
         args = parse_args(argv)
-        # Clear once at startup so the banner appears at the top of the
-        # terminal. Sub-screens never clear again; they append below the banner
-        # to avoid the repeated full-screen redraw effect.
         _clear_screen()
         print_banner()
 
         config = load_config()
+
+        # Language selector on first run or when --configure is used
+        if _is_first_run(config) or args.configure:
+            chosen = _select_language()
+            config["language"] = chosen
+            set_language(chosen)
 
         if args.configure:
             if _is_first_run(config):
@@ -557,7 +573,7 @@ def main(argv: list[str] | None = None) -> int:
             if _is_first_run(config):
                 print(
                     _color(
-                        "\nAn API key is required to use the program.",
+                        f"\n{_('api_key_required_exit')}",
                         Colors.YELLOW,
                     ),
                     file=sys.stderr,
@@ -566,7 +582,7 @@ def main(argv: list[str] | None = None) -> int:
 
         return show_menu(config)
     except KeyboardInterrupt:
-        print(_color("\nOperation cancelled by user.", Colors.YELLOW))
+        print(_color(f"\n{_('conversion_cancelled')}", Colors.YELLOW))
         return 130
 
 
