@@ -6,6 +6,7 @@ A simple command-line tool that converts PDFs, images, documents, and other file
 
 - Converts PDF, Word, PowerPoint, Excel, images, audio, HTML, CSV, JSON, XML, EPUB, and ZIP files to Markdown.
 - Describes images automatically when you use a vision-capable model.
+- **Scanned PDFs** (no selectable text) are automatically OCR'd page by page using your vision model.
 - Saves your API key and preferred models locally so you do not have to enter them every time.
 - Easy interactive menu: just run the program and pick an option.
 
@@ -169,6 +170,7 @@ For text-only files, recommended models are:
 | Model not found | Check the spelling or try `openai`, `glm`, `gemini`, or `claude` |
 | Model does not support images | Switch to a vision model from the list above |
 | Connection error | Make sure you are online |
+| Empty output from a PDF | The PDF may be scanned (no selectable text). The program automatically retries with your vision model to OCR each page. If it still fails, try a different vision model in the configuration menu. |
 | Slow conversion | Large files and busy API servers take longer |
 | Ctrl+C | Pressing Ctrl+C cancels the current operation cleanly |
 | Cancelling a prompt | Type `c`, `cancel`, `b`, or `back` and press Enter to go back |
@@ -191,7 +193,9 @@ src/markitdown_pollinations/     # App code
 ├── config.py                    # Settings load/save
 ├── constants.py                 # API URL, vision models, and recommendations
 ├── converter.py                 # File conversion logic
-└── pollinations_client.py       # Pollinations API client
+├── i18n.py                      # Internationalization (EN/ES)
+├── pollinations_client.py       # Pollinations API client
+└── validation.py                # API key validation
 tests/                           # pytest unit tests
 ```
 
