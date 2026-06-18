@@ -132,6 +132,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "api_key_prompt": "Pollinations API key",
         "recommended": "Recommended:",
         "select": "Select: ",
+        "file_not_found": "File not found: {path}",
+        "by": "by",
         # Misc
         "press_enter_continue": "Press Enter to continue...",
         "conversion_empty_warning": "Conversion succeeded but produced no content.",
@@ -250,6 +252,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "api_key_prompt": "Clave de API de Pollinations",
         "recommended": "Recomendados:",
         "select": "Seleccione: ",
+        "file_not_found": "Archivo no encontrado: {path}",
+        "by": "por",
         # Misc
         "press_enter_continue": "Presione Enter para continuar...",
         "conversion_empty_warning": "La conversión se completó pero no produjo contenido.",
