@@ -76,7 +76,7 @@ def print_banner() -> None:
                             |___/
 """
     print(_color(art, Colors.CYAN))
-    print(f"  by {_color('Angel Romero', Colors.BOLD)} - https://github.com/soyangelromero")
+    print(f"  {_('by')} {_color('Angel Romero', Colors.BOLD)} - https://github.com/soyangelromero")
     print(f"  v{__version__}\n")
 
 
@@ -289,7 +289,7 @@ def _ask_file(prompt: str) -> str | None:
             return None
         if Path(path).is_file():
             return path
-        print(_color(f"File not found: {path}", Colors.RED), file=sys.stderr)
+        print(_color(_("file_not_found").format(path=path), Colors.RED), file=sys.stderr)
 
 
 def _ask_output(input_file: str) -> str | None:
@@ -315,7 +315,7 @@ def _confirm_overwrite(path: str) -> bool:
         .strip()
         .lower()
     )
-    return answer in ("y", "yes")
+    return answer in ("y", "yes", "s", "sí")
 
 
 def _run_conversion(
@@ -528,7 +528,10 @@ def quick_convert(args: argparse.Namespace, config: Config) -> int:
 
     input_file = args.input_file
     if not input_file or not Path(input_file).is_file():
-        print(_color(f"Error: file not found: {input_file}", Colors.RED), file=sys.stderr)
+        msg = _("error_prefix").format(
+            message=_("file_not_found").format(path=input_file)
+        )
+        print(_color(msg, Colors.RED), file=sys.stderr)
         return 1
 
     model = (args.model or _model_for_file(config, input_file)).strip()
