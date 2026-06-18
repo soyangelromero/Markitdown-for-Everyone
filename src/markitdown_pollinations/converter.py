@@ -65,6 +65,7 @@ def convert_file(
         try:
             client = create_client(api_key)
             md = MarkItDown(
+                enable_plugins=True,
                 llm_client=client,
                 llm_model=model,
                 llm_prompt=(
