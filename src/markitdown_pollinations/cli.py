@@ -88,14 +88,44 @@ def _is_cancel_input(value: str) -> bool:
     return value.strip().lower() in _CANCEL_INPUT
 
 
-def _select_language() -> str:
-    """Show language selector and return the chosen language code."""
+def _detect_system_language() -> str:
+    """Detect the system language based on locale settings.
+
+    Uses LC_MESSAGES first, then falls back to getdefaultlocale.
+    Returns 'es' for Spanish locales, 'en' for all others.
+    """
+    import locale
+
+    try:
+        loc = locale.getlocale(locale.LC_MESSAGES)[0]
+    except (AttributeError, ValueError):
+        loc = None
+    if not loc:
+        try:
+            loc = locale.getdefaultlocale()[0]
+        except (AttributeError, ValueError):
+            loc = None
+    if loc and loc.lower().startswith("es"):
+        return "es"
+    return "en"
+
+
+def _select_language(default: str = "en") -> str | None:
+    """Show language selector and return the chosen language code.
+
+    Type 'c', 'cancel', 'b', or 'back' to return None.
+    """
     print(_color(f"\n{_('language_title')}", Colors.CYAN))
     print(_("language_prompt"))
-    print(f"  1. {_('language_en')}")
-    print(f"  2. {_('language_es')}")
+    en_marker = "*" if default == "en" else " "
+    es_marker = "*" if default == "es" else " "
+    print(f"  1. {en_marker} {_('language_en')}")
+    print(f"  2. {es_marker} {_('language_es')}")
+    print(f"  {_('cancel_back')}")
     while True:
         choice = input(_("select")).strip()
+        if _is_cancel_input(choice):
+            return None
         if choice == "1":
             return "en"
         if choice == "2":
@@ -463,9 +493,12 @@ def show_menu(config: Config) -> int:
         elif choice == "3":
             convert_menu_option(config, "Document")
         elif choice == "4":
-            chosen = _select_language()
+            chosen = _select_language(default=config.get("language", "en"))
+            if chosen is None:
+                continue
             config["language"] = chosen
             set_language(chosen)
+            save_config(config)
             config = configure_menu(config)
         else:
             print(_color(_("invalid_menu_option"), Colors.YELLOW))
@@ -550,21 +583,41 @@ def main(argv: list[str] | None = None) -> int:
         _enable_ansi_windows()
         args = parse_args(argv)
         _clear_screen()
+        set_language(_detect_system_language())
         print_banner()
 
         config = load_config()
 
         # Language selector on first run or when --configure is used
         if _is_first_run(config) or args.configure:
-            chosen = _select_language()
+            chosen = _select_language(default=_detect_system_language())
+            if chosen is None:
+                print(
+                    _color(
+                        f"\n{_('api_key_required_exit')}",
+                        Colors.YELLOW,
+                    ),
+                    file=sys.stderr,
+                )
+                return 0
             config["language"] = chosen
             set_language(chosen)
+            # Persist language choice even on first run (api_key may still be empty)
+            save_config(config)
 
         if args.configure:
             if _is_first_run(config):
                 config = setup_wizard(config)
             else:
                 config = configure_menu(config)
+            if _is_first_run(config):
+                print(
+                    _color(
+                        f"\n{_('api_key_required_exit')}",
+                        Colors.YELLOW,
+                    ),
+                    file=sys.stderr,
+                )
             return 0
 
         if args.input_file:

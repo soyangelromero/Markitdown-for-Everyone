@@ -16,6 +16,7 @@ from markitdown_pollinations.cli import (
     _confirm_overwrite,
     _is_cancel_input,
     _prompt_for_api_key,
+    _select_language,
     main,
     parse_args,
 )
@@ -112,7 +113,10 @@ def test_setup_wizard_first_run(
     code = main(["--configure"])
 
     assert code == 0
-    mock_save_config.assert_called_once_with(
+    # T9c persists language before wizard runs, so save_config is called twice:
+    # 1. Language-only save (api_key still empty at that point)
+    # 2. Full config save after wizard completes
+    mock_save_config.assert_called_with(
         {"api_key": "sk-secret-key-123", "text_model": "openai", "vision_model": "openai", "language": "en"}  # noqa: E501
     )
 
@@ -143,7 +147,10 @@ def test_configure_menu_updates_settings(
     code = main(["--configure"])
 
     assert code == 0
-    mock_save_config.assert_called_once_with(
+    # T9c persists language before configure_menu runs, so save_config is called twice:
+    # 1. Language-only save (with old api_key at that point)
+    # 2. Full config save after configure_menu completes
+    mock_save_config.assert_called_with(
         {
             "api_key": "sk-new-key-12345",
             "text_model": "openai",
@@ -383,3 +390,116 @@ def test_quick_convert_confirms_overwrite_and_cancels(
 
     assert code == 0
     mock_convert_file.assert_not_called()
+
+
+@patch("builtins.input")
+def test_select_language_cancel_returns_none(mock_input):
+    """Cancel input returns None instead of a language code."""
+    mock_input.return_value = "c"
+    assert _select_language() is None
+
+
+@patch("builtins.input")
+def test_select_language_invalid_reprompts(mock_input):
+    """Invalid input reprompts; valid input returns the language code."""
+    mock_input.side_effect = ["99", "0", "1"]
+    assert _select_language() == "en"
+
+
+def test_detect_system_language_es(monkeypatch):
+    """Spanish locale is detected and returns 'es'."""
+    import locale
+
+    def fake_getlocale(category):
+        return ("es_ES", "UTF-8")
+
+    monkeypatch.setattr(locale, "getlocale", fake_getlocale)
+    from markitdown_pollinations.cli import _detect_system_language
+
+    assert _detect_system_language() == "es"
+
+
+def test_detect_system_language_fallback_en(monkeypatch):
+    """Both locale sources return None -> defaults to 'en'."""
+    import locale
+
+    calls = []
+
+    def fake_getlocale(category):
+        calls.append(category)
+        return (None, None)
+
+    def fake_getdefaultlocale():
+        return (None, None)
+
+    monkeypatch.setattr(locale, "getlocale", fake_getlocale)
+    monkeypatch.setattr(locale, "getdefaultlocale", fake_getdefaultlocale)
+    from markitdown_pollinations.cli import _detect_system_language
+
+    assert _detect_system_language() == "en"
+
+
+@patch("getpass.getpass")
+@patch("builtins.input")
+@patch("markitdown_pollinations.cli._clear_screen")
+@patch("markitdown_pollinations.cli._detect_system_language")
+@patch("markitdown_pollinations.cli.save_config")
+@patch("markitdown_pollinations.cli.load_config")
+def test_configure_cancel_first_run_prints_message(
+    mock_load_config, mock_save_config, mock_detect_lang,
+    mock_clear, mock_input, mock_getpass, capsys
+):
+    """First run + --configure: cancelling at API key prompt prints exit message."""
+    mock_load_config.return_value = {
+        "api_key": "",
+        "text_model": "openai",
+        "vision_model": "openai",
+    }
+    mock_detect_lang.return_value = "en"
+    mock_getpass.return_value = "c"  # cancel at API key prompt
+    mock_input.side_effect = [
+        "1",  # language selector -> English (accept default)
+        "c",  # cancel at text model prompt
+    ]
+    mock_save_config.return_value = True
+
+    code = main(["--configure"])
+
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "An API key is required to use the program" in captured.err
+
+
+@patch("getpass.getpass")
+@patch("builtins.input")
+@patch("markitdown_pollinations.cli._clear_screen")
+@patch("markitdown_pollinations.cli._detect_system_language")
+@patch("markitdown_pollinations.cli.save_config")
+@patch("markitdown_pollinations.cli.load_config")
+def test_language_persisted_on_config_cancel(
+    mock_load_config, mock_save_config, mock_detect_lang, mock_clear, mock_input, mock_getpass
+):
+    """Language is saved immediately even when user cancels at the next prompt."""
+    mock_load_config.return_value = {
+        "api_key": "",
+        "text_model": "openai",
+        "vision_model": "openai",
+    }
+    mock_detect_lang.return_value = "en"
+    mock_getpass.return_value = "c"  # cancel at text model -> setup_wizard exits early
+    mock_input.side_effect = [
+        "2",  # language selector -> Español (es)
+        "c",  # cancel at text model prompt
+    ]
+    mock_save_config.return_value = True
+
+    code = main(["--configure"])
+
+    assert code == 0
+    # Language was persisted before the cancel at model prompt
+    call_with_es = {
+        call[0][0]["language"]
+        for call in mock_save_config.call_args_list
+        if call[0][0].get("language") == "es"
+    }
+    assert call_with_es, "save_config should have been called with language='es'"
