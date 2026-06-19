@@ -28,8 +28,9 @@ python -m venv .venv
 # macOS/Linux
 source .venv/bin/activate
 
-pip install -r requirements.txt
-# or: pip install -e .
+pip install -e .
+# Dependencies only (you must also run pip install -e . or set PYTHONPATH=src for the entry script to find the package):
+# pip install -r requirements.txt
 ```
 
 ## First run
@@ -48,7 +49,12 @@ On the first run it will ask you for:
 
 Type `c`, `cancel`, `b`, or `back` at any prompt to go back without saving changes.
 
-Your choices are saved to `config.json` and you will not need to enter them again.
+Your choices are saved to a `config.json` file in your user config directory (`platformdirs`), and you will not need to enter them again.
+
+**Config file location:**
+- Windows: `%LOCALAPPDATA%\AngelRomero\markitdown-for-everyone\config.json`
+- macOS: `~/Library/Application Support/markitdown-for-everyone/config.json`
+- Linux: `~/.config/markitdown-for-everyone/config.json`
 
 If you prefer not to save your API key to disk, set the `POLLINATIONS_API_KEY` environment variable before running the program. The program uses that value instead of the key in `config.json`.
 
@@ -201,13 +207,15 @@ tests/                           # pytest unit tests
 
 ## Security note
 
-Your API key is stored in plain text in `config.json` in the project root. That file is already listed in `.gitignore`, so it will not be committed by accident. On Linux and macOS the program tries to set the file permissions to `600` (owner-only read/write) when it saves the configuration.
+Your API key is stored in plain text in `config.json` in your user config directory (see above). Because the file lives outside the project directory, it is never committed by git. On Linux and macOS the program tries to set the file permissions to `600` (owner-only read/write) when it saves the configuration.
 
 To avoid storing the key on disk at all, use the `POLLINATIONS_API_KEY` environment variable. When this variable is set, the program uses it instead of any key saved in `config.json`.
 
 **Note:** Passing your API key via the `-k` / `--api-key` flag exposes it in the process list and shell history. Use the environment variable instead on shared or multi-user systems.
 
-Keep `config.json` private, and run `chmod 600 config.json` on Linux or macOS if you want to restrict access.
+Keep your config file private, and run `chmod 600` on it (Linux or macOS) if you want to restrict access.
+
+Storing the API key in the system keyring (Credential Manager / Keychain / Secret Service) is planned for a future release.
 
 ## License
 

@@ -27,7 +27,8 @@ from markitdown_pollinations.i18n import _
 from markitdown_pollinations.pollinations_client import create_client
 
 MAX_RETRIES = 3
-RETRY_DELAYS = [1, 2, 4]
+# RETRY_DELAYS[i] = delay before retry attempt i+1; last attempt returns fatal instead of retrying
+RETRY_DELAYS = [1, 2]
 
 
 @dataclass
@@ -59,8 +60,6 @@ def convert_file(
     Returns:
         ConversionResult describing the outcome.
     """
-    last_error: Exception | None = None
-
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             client = create_client(api_key)
@@ -78,9 +77,11 @@ def convert_file(
             content = result.markdown
 
             if not content:
-                warning = _("conversion_empty_warning")
-            else:
-                warning = ""
+                return ConversionResult(
+                    success=True,
+                    warning=_("conversion_empty_warning"),
+                    output_path=None,
+                )
 
             try:
                 Path(output_file).write_text(content, encoding="utf-8")
@@ -93,7 +94,6 @@ def convert_file(
             return ConversionResult(
                 success=True,
                 output_path=output_file,
-                warning=warning,
             )
 
         except (AuthenticationError, PermissionDeniedError):
@@ -102,8 +102,7 @@ def convert_file(
                 message=_("auth_error"),
             )
 
-        except (APIConnectionError, APITimeoutError) as e:
-            last_error = e
+        except (APIConnectionError, APITimeoutError):
             if attempt < MAX_RETRIES:
                 delay = RETRY_DELAYS[attempt - 1]
                 print(
@@ -167,11 +166,3 @@ def convert_file(
                 success=False,
                 message=_("unexpected_error").format(error=e),
             )
-
-    # This should never be reached, but safety net
-    return ConversionResult(
-        success=False,
-        message=_("unexpected_error_retries").format(
-            max_retries=MAX_RETRIES, error=last_error
-        ),
-    )

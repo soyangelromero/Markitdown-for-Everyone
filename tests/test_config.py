@@ -57,15 +57,29 @@ def test_load_config_returns_valid_config(isolated_config):
     assert load_config() == expected
 
 
-def test_load_config_uses_env_api_key(isolated_config, monkeypatch):
-    isolated_config.write_text(
-        '{"api_key": "file_key", "text_model": "openai", "vision_model": "openai"}',
-        encoding="utf-8",
+def test_load_config_env_key_preserves_file_settings(isolated_config, monkeypatch):
+    """POLLINATIONS_API_KEY overrides api_key but preserves file settings."""
+    config_json = (
+        '{"api_key": "file_key", "text_model": "gemini",'
+        '"vision_model": "gemini-large", "language": "es"}'
     )
+    isolated_config.write_text(config_json, encoding="utf-8")
     monkeypatch.setenv("POLLINATIONS_API_KEY", "env_key")
-    expected = DEFAULT.copy()
-    expected["api_key"] = "env_key"
-    assert load_config() == expected
+    result = load_config()
+    assert result["api_key"] == "env_key"
+    assert result["text_model"] == "gemini"
+    assert result["vision_model"] == "gemini-large"
+    assert result["language"] == "es"
+
+
+def test_load_config_env_key_with_no_file_returns_defaults(isolated_config, monkeypatch):
+    """When env var is set but no config file exists, return defaults with api_key overridden."""
+    monkeypatch.setenv("POLLINATIONS_API_KEY", "env_key")
+    result = load_config()
+    assert result["api_key"] == "env_key"
+    assert result["text_model"] == "openai"
+    assert result["vision_model"] == "openai"
+    assert result["language"] == "en"
 
 
 def test_load_config_ignores_empty_env_api_key(isolated_config, monkeypatch):

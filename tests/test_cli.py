@@ -19,6 +19,7 @@ from markitdown_pollinations.cli import (
     main,
     parse_args,
 )
+from markitdown_pollinations.constants import _reset_no_color_cache
 from markitdown_pollinations.validation import _validate_key_via_api
 
 
@@ -210,7 +211,7 @@ def test_version_flag(mock_load_config, capsys):
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
-    assert "Markitdown-for-everyone 0.3.0" in captured.out
+    assert "Markitdown-for-everyone 0.3.1" in captured.out
 
 
 @pytest.mark.parametrize("value", ["b", "back", "B", "BACK"])
@@ -324,10 +325,12 @@ def test_confirm_overwrite_returns_true_for_missing_file(tmp_path):
 
 def test_color_respects_no_color(monkeypatch):
     monkeypatch.setenv("NO_COLOR", "1")
+    _reset_no_color_cache()
     assert _color("hello", "\033[31m") == "hello"
 
 
 def test_color_adds_ansi_when_no_color_not_set():
+    _reset_no_color_cache()
     assert _color("hello", "\033[31m") == "\033[31mhello\033[0m"
 
 

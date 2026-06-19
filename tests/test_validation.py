@@ -69,6 +69,63 @@ def test_validate_key_via_api_successful_balance_returns_valid(mock_urlopen):
     assert result == "valid"
 
 
+@patch("urllib.request.urlopen")
+def test_validate_key_200_with_choices_returns_valid(mock_urlopen):
+    """HTTP 200 with a choices body returns 'valid'."""
+    # First call (balance endpoint) raises 500 → fall through to chat.
+    # Second call (chat endpoint) returns 200 with choices.
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b'{"choices":[{"message":{"content":"hi"}}]}'
+    mock_resp.status = 200
+    mock_resp.__enter__.return_value = mock_resp
+    mock_urlopen.side_effect = [
+        _make_http_error(500, "Server Error"),
+        mock_resp,
+    ]
+
+    result = _validate_key_via_api("sk-test-key-12345")
+
+    assert result == "valid"
+
+
+@patch("urllib.request.urlopen")
+def test_validate_key_200_with_error_body_returns_unknown(mock_urlopen):
+    """HTTP 200 with an error-shaped body (no choices) returns 'unknown'."""
+    # First call (balance endpoint) raises 500 → fall through to chat.
+    # Second call (chat endpoint) returns 200 with error body.
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b'{"error":{"message":"oops"}}'
+    mock_resp.status = 200
+    mock_resp.__enter__.return_value = mock_resp
+    mock_urlopen.side_effect = [
+        _make_http_error(500, "Server Error"),
+        mock_resp,
+    ]
+
+    result = _validate_key_via_api("sk-test-key-12345")
+
+    assert result == "unknown"
+
+
+@patch("urllib.request.urlopen")
+def test_validate_key_200_with_non_json_returns_unknown(mock_urlopen):
+    """HTTP 200 with non-JSON body returns 'unknown'."""
+    # First call (balance endpoint) raises 500 → fall through to chat.
+    # Second call (chat endpoint) returns 200 with non-JSON body.
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = b"not json at all"
+    mock_resp.status = 200
+    mock_resp.__enter__.return_value = mock_resp
+    mock_urlopen.side_effect = [
+        _make_http_error(500, "Server Error"),
+        mock_resp,
+    ]
+
+    result = _validate_key_via_api("sk-test-key-12345")
+
+    assert result == "unknown"
+
+
 def test_no_unicode_arrow_in_validation_output():
     """Regression test: no Unicode arrow (→, U+2192) in validation.py user-facing strings.
 

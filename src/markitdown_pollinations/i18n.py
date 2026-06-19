@@ -137,6 +137,17 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Misc
         "press_enter_continue": "Press Enter to continue...",
         "conversion_empty_warning": "Conversion succeeded but produced no content.",
+        # New keys
+        "overwrite_cancelled": "Overwrite cancelled.",
+        "no_output_empty": "No content was produced; no file was written.",
+        "not_vision_info": (
+            "Note: '{model}' is not in the known vision models list. "
+            "Image conversion may be limited."
+        ),
+        "language_flag_help": "Interface language (en/es)",
+        "verbose_help": "Show informational messages",
+        "debug_help": "Show debug messages",
+        "language_detected": "Detected system language: {lang}",
     },
     "es": {
         # Language selector
@@ -257,5 +268,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Misc
         "press_enter_continue": "Presione Enter para continuar...",
         "conversion_empty_warning": "La conversión se completó pero no produjo contenido.",
+        # New keys
+        "overwrite_cancelled": "Sobrescritura cancelada.",
+        "no_output_empty": "No se produjo contenido; no se escribió ningún archivo.",
+        "not_vision_info": (
+            "Nota: '{model}' no está en la lista de modelos de visión conocidos. "
+            "La conversión de imágenes puede ser limitada."
+        ),
+        "language_flag_help": "Idioma de la interfaz (en/es)",
+        "verbose_help": "Mostrar mensajes informativos",
+        "debug_help": "Mostrar mensajes de depuración",
+        "language_detected": "Idioma del sistema detectado: {lang}",
     },
 }

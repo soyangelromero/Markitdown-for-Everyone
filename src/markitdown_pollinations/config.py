@@ -43,28 +43,38 @@ def load_config() -> Config:
     Prints a warning message on any error.
     """
     env_key = os.environ.get("POLLINATIONS_API_KEY", "").strip()
-    if env_key:
-        config = DEFAULT_CONFIG.copy()
-        config["api_key"] = env_key
-        return config
 
     if not CONFIG_FILE.exists():
-        return DEFAULT_CONFIG.copy()
+        merged = DEFAULT_CONFIG.copy()
+        if env_key:
+            merged["api_key"] = env_key
+        return merged
 
     try:
         with open(CONFIG_FILE, encoding="utf-8") as f:
             config = json.load(f)
             if not isinstance(config, dict):
                 print(_("config_warn_not_dict"), file=sys.stderr)
-                return DEFAULT_CONFIG.copy()
+                merged = DEFAULT_CONFIG.copy()
+                if env_key:
+                    merged["api_key"] = env_key
+                return merged
             merged = {**DEFAULT_CONFIG, **config}
+            if env_key:
+                merged["api_key"] = env_key
             return merged
     except json.JSONDecodeError as e:
         print(_("config_warn_invalid_json").format(error=e), file=sys.stderr)
-        return DEFAULT_CONFIG.copy()
+        merged = DEFAULT_CONFIG.copy()
+        if env_key:
+            merged["api_key"] = env_key
+        return merged
     except OSError as e:
         print(_("config_warn_cannot_read").format(error=e), file=sys.stderr)
-        return DEFAULT_CONFIG.copy()
+        merged = DEFAULT_CONFIG.copy()
+        if env_key:
+            merged["api_key"] = env_key
+        return merged
 
 
 def save_config(config: Config) -> bool:
