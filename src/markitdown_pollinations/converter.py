@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +26,8 @@ from openai import (
 
 from markitdown_pollinations.i18n import _
 from markitdown_pollinations.pollinations_client import create_client
+
+logger = logging.getLogger("markitdown_pollinations")
 
 MAX_RETRIES = 3
 # RETRY_DELAYS[i] = delay before retry attempt i+1; last attempt returns fatal instead of retrying
@@ -105,7 +108,7 @@ def convert_file(
         except (APIConnectionError, APITimeoutError):
             if attempt < MAX_RETRIES:
                 delay = RETRY_DELAYS[attempt - 1]
-                print(
+                logger.info(
                     _("conn_error_retry").format(
                         attempt=attempt, max_retries=MAX_RETRIES, delay=delay
                     )

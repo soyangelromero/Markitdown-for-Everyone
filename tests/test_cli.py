@@ -37,16 +37,6 @@ def temp_file(tmp_path):
     return str(path)
 
 
-@pytest.fixture
-def configured_config():
-    """Return a fully configured config dictionary."""
-    return {
-        "api_key": "test-key",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
-
-
 def test_parse_args_positional_input():
     args = parse_args(["file.pdf", "-o", "out.md", "-k", "key", "-m", "openai"])
     assert args.input_file == "file.pdf"
@@ -558,3 +548,61 @@ def test_spinner_ascii_only():
                             )
             except Exception:
                 pass
+
+
+def test_parse_args_language_flag():
+    """--language accepts 'en' and 'es' and stores them as args.language."""
+    for lang in ("en", "es"):
+        args = parse_args(["--language", lang, "file.pdf"])
+        assert args.language == lang
+
+    args_default = parse_args(["file.pdf"])
+    assert args_default.language is None
+
+
+def test_language_flag_invalid_rejected():
+    """--language with an invalid value causes SystemExit."""
+    with pytest.raises(SystemExit):
+        parse_args(["--language", "fr", "file.pdf"])
+
+
+@patch("builtins.input")
+@patch("markitdown_pollinations.cli.convert_file")
+@patch("markitdown_pollinations.cli.load_config")
+@patch("markitdown_pollinations.cli._clear_screen")
+def test_language_flag_sets_spanish(
+    mock_clear, mock_load_config, mock_convert_file, mock_input, temp_file, capsys
+):
+    """--language es sets the CLI into Spanish mode."""
+    mock_load_config.return_value = {
+        "api_key": "key",
+        "text_model": "openai",
+        "vision_model": "openai",
+    }
+    result = MagicMock()
+    result.success = True
+    result.cancelled = False
+    result.output_path = temp_file.replace(".txt", ".md")
+    result.warning = ""
+    mock_convert_file.return_value = result
+
+    code = main(["--language", "es", temp_file])
+
+    assert code == 0
+    captured = capsys.readouterr()
+    # Banner tagline "por Angel Romero" appears only in Spanish
+    assert "por" in captured.out
+
+
+def test_verbose_flag_sets_info_level():
+    """--verbose sets args.verbose to True."""
+    args = parse_args(["--verbose", "file.pdf"])
+    assert args.verbose is True
+    assert args.debug is False
+
+
+def test_debug_flag_sets_debug_level():
+    """--debug configures logging at DEBUG level."""
+    args = parse_args(["--debug", "file.pdf"])
+    assert args.debug is True
+    assert args.verbose is False
