@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import itertools
+import logging
 import os
 import sys
 import threading
@@ -28,6 +29,8 @@ from markitdown_pollinations.validation import (
     _validate_key_via_api,
     _warn_if_key_invalid,
 )
+
+logger = logging.getLogger("markitdown_pollinations")
 
 
 def _enable_ansi_windows() -> None:
@@ -371,9 +374,7 @@ def _run_conversion(
             file=sys.stderr,
         )
 
-    print(
-        f"\n{_('converting').format(input=input_file, output=output_file, model=model)}"
-    )
+    logger.info(_('converting').format(input=input_file, output=output_file, model=model))
 
     # Spinner for conversion
     spinner_frames = "-\\|/"
@@ -550,6 +551,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="version",
         version=f"Markitdown-for-everyone {__version__}",
     )
+    parser.add_argument(
+        "-l",
+        "--language",
+        choices=["en", "es"],
+        default=None,
+        help=_("language_flag_help"),
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help=_("verbose_help"),
+    )
+    parser.add_argument(
+        "-d",
+        "--debug",
+        action="store_true",
+        help=_("debug_help"),
+    )
     return parser.parse_args(argv)
 
 
@@ -585,15 +605,33 @@ def main(argv: list[str] | None = None) -> int:
     try:
         _enable_ansi_windows()
         args = parse_args(argv)
+
+        # Configure logging based on verbosity flags
+        if args.debug:
+            logging.basicConfig(
+                level=logging.DEBUG,
+                stream=sys.stderr,
+                format="%(levelname)s: %(message)s",
+            )
+        elif args.verbose:
+            logging.basicConfig(
+                level=logging.INFO,
+                stream=sys.stderr,
+                format="%(levelname)s: %(message)s",
+            )
+
+        # Determine effective language: CLI flag overrides system detection
+        effective_lang = args.language or _detect_system_language()
+        set_language(effective_lang)
+
         _clear_screen()
-        set_language(_detect_system_language())
         print_banner()
 
         config = load_config()
 
         # Language selector on first run or when --configure is used
         if _is_first_run(config) or args.configure:
-            chosen = _select_language(default=_detect_system_language())
+            chosen = _select_language(default=effective_lang)
             if chosen is None:
                 print(
                     _color(
