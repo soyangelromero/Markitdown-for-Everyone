@@ -117,13 +117,29 @@ def _validate_key_via_api(api_key: str) -> _KeyValidationResult:
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=VALIDATION_TIMEOUT_SECONDS) as resp:
-            if resp.status == 200:
-                print(_color(_("key_verified"), Colors.GREEN))
-                return "valid"
             body = resp.read().decode()
-            msg = json.loads(body).get("error", {}).get("message", "Unknown error")
-            print(_color(_("warning_prefix").format(warning=msg), Colors.YELLOW), file=sys.stderr)
-            return "unknown"
+            try:
+                data = json.loads(body)
+            except json.JSONDecodeError:
+                print(
+                    _color(
+                        _("warning_prefix").format(warning="non-JSON response from chat endpoint"),
+                        Colors.YELLOW,
+                    ),
+                    file=sys.stderr,
+                )
+                return "unknown"
+            if "choices" not in data:
+                print(
+                    _color(
+                        _("warning_prefix").format(warning="no 'choices' in chat response"),
+                        Colors.YELLOW,
+                    ),
+                    file=sys.stderr,
+                )
+                return "unknown"
+            print(_color(_("key_verified"), Colors.GREEN))
+            return "valid"
 
     except urllib.error.HTTPError as e:
         body = e.read().decode()

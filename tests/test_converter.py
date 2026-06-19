@@ -54,7 +54,24 @@ def test_convert_empty_content_warning(tmp_path):
         result = convert_file(str(input_file), str(output_file), "key", "openai")
 
     assert result.success is True
+    assert result.output_path is None
+    assert not output_file.exists()
     assert "no content" in result.warning.lower()
+
+
+def test_convert_empty_no_file_written(tmp_path):
+    input_file = _make_input(tmp_path)
+    output_file = tmp_path / "output.md"
+
+    with patch("markitdown_pollinations.converter.MarkItDown") as MockMD:
+        mock_result = MagicMock()
+        mock_result.markdown = ""
+        MockMD.return_value.convert.return_value = mock_result
+
+        result = convert_file(str(input_file), str(output_file), "key", "openai")
+
+    assert result.success is True
+    assert output_file.exists() is False
 
 
 def test_convert_unsupported_format(tmp_path):
