@@ -109,7 +109,10 @@ def test_load_config_fills_missing_keys_with_defaults(isolated_config):
 def test_save_config_returns_false_on_write_error(isolated_config):
     with patch("builtins.open", mock_open()) as mocked:
         mocked.return_value.write.side_effect = OSError("permission denied")
-        assert save_config({"api_key": "x", "text_model": "y", "vision_model": "z", "language": "en"}) is False  # noqa: E501
+        assert (
+            save_config({"api_key": "x", "text_model": "y", "vision_model": "z", "language": "en"})
+            is False
+        )  # noqa: E501
 
 
 def test_save_config_sets_unix_permissions(isolated_config, monkeypatch):
@@ -122,7 +125,14 @@ def test_save_config_sets_unix_permissions(isolated_config, monkeypatch):
     monkeypatch.setattr("os.name", "posix")
 
     assert (
-        save_config({"api_key": "sk_test", "text_model": "openai", "vision_model": "openai", "language": "en"})  # noqa: E501
+        save_config(
+            {
+                "api_key": "sk_test",
+                "text_model": "openai",
+                "vision_model": "openai",
+                "language": "en",
+            }
+        )  # noqa: E501
         is True
     )
     assert len(chmod_calls) == 1
@@ -139,7 +149,14 @@ def test_save_config_skips_chmod_on_windows(isolated_config, monkeypatch):
     monkeypatch.setattr("os.name", "nt")
 
     assert (
-        save_config({"api_key": "sk_test", "text_model": "openai", "vision_model": "openai", "language": "en"})  # noqa: E501
+        save_config(
+            {
+                "api_key": "sk_test",
+                "text_model": "openai",
+                "vision_model": "openai",
+                "language": "en",
+            }
+        )  # noqa: E501
         is True
     )
     assert len(chmod_calls) == 0

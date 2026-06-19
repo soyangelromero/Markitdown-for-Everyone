@@ -100,7 +100,7 @@ def _detect_system_language() -> str:
     import locale
 
     try:
-        loc = locale.getlocale(locale.LC_MESSAGES)[0]
+        loc = locale.getlocale(locale.LC_MESSAGES)[0]  # type: ignore[attr-defined]
     except (AttributeError, ValueError):
         loc = None
     if not loc:
@@ -374,7 +374,7 @@ def _run_conversion(
             file=sys.stderr,
         )
 
-    logger.info(_('converting').format(input=input_file, output=output_file, model=model))
+    logger.info(_("converting").format(input=input_file, output=output_file, model=model))
 
     # Spinner for conversion
     spinner_frames = "-\\|/"
@@ -462,7 +462,10 @@ def convert_menu_option(config: Config, file_kind: str) -> int:
         print(_("run_configure"), file=sys.stderr)
         return 1
     return _run_conversion(
-        input_file, output_file, api_key, model,
+        input_file,
+        output_file,
+        api_key,
+        model,
         vision_model=config.get("vision_model"),
     )
 
@@ -583,9 +586,7 @@ def quick_convert(args: argparse.Namespace, config: Config) -> int:
 
     input_file = args.input_file
     if not input_file or not Path(input_file).is_file():
-        msg = _("error_prefix").format(
-            message=_("file_not_found").format(path=input_file)
-        )
+        msg = _("error_prefix").format(message=_("file_not_found").format(path=input_file))
         print(_color(msg, Colors.RED), file=sys.stderr)
         return 1
 
@@ -595,7 +596,10 @@ def quick_convert(args: argparse.Namespace, config: Config) -> int:
         print(_color(_("overwrite_cancelled"), Colors.YELLOW))
         return 0
     return _run_conversion(
-        input_file, output_file, api_key, model,
+        input_file,
+        output_file,
+        api_key,
+        model,
         vision_model=config.get("vision_model"),
     )
 
