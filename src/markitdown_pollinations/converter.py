@@ -45,7 +45,7 @@ class ConversionResult:
     output_path: str | None = None
 
 
-def convert_file(
+def convert_file(  # type: ignore[return]
     input_file: str,
     output_file: str,
     api_key: str,

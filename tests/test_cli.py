@@ -112,7 +112,12 @@ def test_setup_wizard_first_run(
     # 1. Language-only save (api_key still empty at that point)
     # 2. Full config save after wizard completes
     mock_save_config.assert_called_with(
-        {"api_key": "sk-secret-key-123", "text_model": "openai", "vision_model": "openai", "language": "en"}  # noqa: E501
+        {
+            "api_key": "sk-secret-key-123",
+            "text_model": "openai",
+            "vision_model": "openai",
+            "language": "en",
+        }  # noqa: E501
     )
 
 
@@ -253,20 +258,16 @@ def test_no_unicode_arrow_in_cli_output(capsys):
     violations = []
     for lineno, line in enumerate(lines, start=1):
         # Check lines that produce user-visible output.
-        if ("print(" in line or 'f"' in line or "f'" in line):
+        if "print(" in line or 'f"' in line or "f'" in line:
             if "\\u2192" in line or "→" in line:
                 violations.append(f"line {lineno} (arrow): {line.strip()}")
             # Braille patterns: U+2800–U+28FF
             for ch in line:
                 if 0x2800 <= ord(ch) <= 0x28FF:
-                    violations.append(
-                        f"line {lineno} (Braille U+{ord(ch):04X}): {line.strip()}"
-                    )
+                    violations.append(f"line {lineno} (Braille U+{ord(ch):04X}): {line.strip()}")
                     break
 
-    assert not violations, (
-        "Non-ASCII or Braille found in cli.py:\n" + "\n".join(violations)
-    )
+    assert not violations, "Non-ASCII or Braille found in cli.py:\n" + "\n".join(violations)
 
 
 @pytest.mark.parametrize("value", ["c", "C", "cancel", "CANCEL", "  Cancel  "])
@@ -450,8 +451,13 @@ def test_detect_system_language_fallback_en(monkeypatch):
 @patch("markitdown_pollinations.cli.save_config")
 @patch("markitdown_pollinations.cli.load_config")
 def test_configure_cancel_first_run_prints_message(
-    mock_load_config, mock_save_config, mock_detect_lang,
-    mock_clear, mock_input, mock_getpass, capsys
+    mock_load_config,
+    mock_save_config,
+    mock_detect_lang,
+    mock_clear,
+    mock_input,
+    mock_getpass,
+    capsys,
 ):
     """First run + --configure: cancelling at API key prompt prints exit message."""
     mock_load_config.return_value = {
@@ -519,9 +525,7 @@ def test_run_conversion_empty_no_done_message(mock_convert_file, temp_file, caps
     )
     output_file = str(Path(temp_file).with_suffix(".md"))
 
-    code = _run_conversion(
-        temp_file, output_file, "sk-test-key", "openai", vision_model=None
-    )
+    code = _run_conversion(temp_file, output_file, "sk-test-key", "openai", vision_model=None)
 
     assert code == 0
     captured = capsys.readouterr()

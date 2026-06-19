@@ -17,9 +17,7 @@ def _(key: str) -> str:
     Falls back to English when the key is missing from the selected language
     or from the English dictionary itself.
     """
-    return TRANSLATIONS.get(_current_language, {}).get(
-        key, TRANSLATIONS["en"].get(key, key)
-    )
+    return TRANSLATIONS.get(_current_language, {}).get(key, TRANSLATIONS["en"].get(key, key))
 
 
 # ── Translation data ──────────────────────────────────────────────────────────
@@ -75,8 +73,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "file_kind_image": "Image",
         "file_kind_document": "Document",
         "not_vision_warning": (
-            "Warning: '{model}' is not a vision model. "
-            "Images may not convert correctly."
+            "Warning: '{model}' is not a vision model. Images may not convert correctly."
         ),
         "conversion_cancelled": "Conversion cancelled.",
         "error_prefix": "Error: {message}",
@@ -103,8 +100,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Get your key at https://enter.pollinations.ai"
         ),
         "key_short_warning": (
-            "Warning: The API key seems too short. "
-            "Get your key at https://enter.pollinations.ai"
+            "Warning: The API key seems too short. Get your key at https://enter.pollinations.ai"
         ),
         # Converter — printed messages
         "conn_error_retry": (
