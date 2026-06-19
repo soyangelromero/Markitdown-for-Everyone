@@ -365,8 +365,8 @@ def _run_conversion(
     if ext in IMAGE_EXTENSIONS and model not in VISION_MODELS:
         print(
             _color(
-                _("not_vision_warning").format(model=model),
-                Colors.YELLOW,
+                _("not_vision_info").format(model=model),
+                Colors.CYAN,
             ),
             file=sys.stderr,
         )
@@ -376,7 +376,7 @@ def _run_conversion(
     )
 
     # Spinner for conversion
-    spinner_frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    spinner_frames = "-\\|/"
     stop_spinner = threading.Event()
     no_color = bool(os.environ.get("NO_COLOR"))
 
@@ -430,6 +430,9 @@ def _run_conversion(
         print(_color(_("error_prefix").format(message=result.message), Colors.RED), file=sys.stderr)
         return 1
 
+    if result.output_path is None:
+        print(_color(_("no_output_empty"), Colors.YELLOW))
+        return 0
     print(_color(_("done").format(output=result.output_path), Colors.GREEN))
     if result.warning:
         print(_color(_("warning_prefix").format(warning=result.warning), Colors.YELLOW))
@@ -569,7 +572,7 @@ def quick_convert(args: argparse.Namespace, config: Config) -> int:
     model = (args.model or _model_for_file(config, input_file)).strip()
     output_file = args.output_file or str(Path(input_file).with_suffix(".md"))
     if not _confirm_overwrite(output_file):
-        print(_color(_("conversion_cancelled"), Colors.YELLOW))
+        print(_color(_("overwrite_cancelled"), Colors.YELLOW))
         return 0
     return _run_conversion(
         input_file, output_file, api_key, model,

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import ast
+import inspect
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+import markitdown_pollinations.cli as cli_module
 from markitdown_pollinations.cli import (
     _ask_file,
     _ask_model,
@@ -16,11 +19,13 @@ from markitdown_pollinations.cli import (
     _confirm_overwrite,
     _is_cancel_input,
     _prompt_for_api_key,
+    _run_conversion,
     _select_language,
     main,
     parse_args,
 )
 from markitdown_pollinations.constants import _reset_no_color_cache
+from markitdown_pollinations.converter import ConversionResult
 from markitdown_pollinations.validation import _validate_key_via_api
 
 
@@ -244,29 +249,34 @@ def test_validate_key_via_api_non_json_balance_response(mock_urlopen):
 
 
 def test_no_unicode_arrow_in_cli_output(capsys):
-    """T5.4: No user-facing strings contain the Unicode arrow \\u2192.
+    """T5.4 + M4: No user-facing strings contain the Unicode arrow \\u2192 or Braille patterns.
 
     Regression test: a previous version used the Unicode arrow character (→, U+2192)
     in user-facing strings, which broke on terminals without Unicode support.
-    This test ensures no such characters are reintroduced.
+    T10/M4 also removed Braille spinner frames (U+2800–U+28FF) in favour of ASCII.
+    This test ensures neither character class is reintroduced.
     After T4, validation.py also has user-facing strings — see
     test_no_unicode_arrow_in_validation_output in test_validation.py.
     """
-    import inspect
-
-    import markitdown_pollinations.cli as cli_module
-
     source = inspect.getsource(cli_module)
     lines = source.splitlines()
     violations = []
     for lineno, line in enumerate(lines, start=1):
         # Check lines that produce user-visible output.
-        if ("print(" in line or 'f"' in line or "f'" in line) and (
-            "\\u2192" in line or "→" in line
-        ):
-            violations.append(f"line {lineno}: {line.strip()}")
+        if ("print(" in line or 'f"' in line or "f'" in line):
+            if "\\u2192" in line or "→" in line:
+                violations.append(f"line {lineno} (arrow): {line.strip()}")
+            # Braille patterns: U+2800–U+28FF
+            for ch in line:
+                if 0x2800 <= ord(ch) <= 0x28FF:
+                    violations.append(
+                        f"line {lineno} (Braille U+{ord(ch):04X}): {line.strip()}"
+                    )
+                    break
 
-    assert not violations, "Non-ASCII or \\u2192 found in cli.py:\n" + "\n".join(violations)
+    assert not violations, (
+        "Non-ASCII or Braille found in cli.py:\n" + "\n".join(violations)
+    )
 
 
 @pytest.mark.parametrize("value", ["c", "C", "cancel", "CANCEL", "  Cancel  "])
@@ -373,9 +383,11 @@ def test_main_handles_keyboard_interrupt_gracefully(mock_load_config, mock_clear
 @patch("builtins.input")
 @patch("markitdown_pollinations.cli.convert_file")
 @patch("markitdown_pollinations.cli.load_config")
+@patch("markitdown_pollinations.cli._detect_system_language")
 def test_quick_convert_confirms_overwrite_and_cancels(
-    mock_load_config, mock_convert_file, mock_input, temp_file
+    mock_detect, mock_load_config, mock_convert_file, mock_input, temp_file, capsys
 ):
+    mock_detect.return_value = "en"
     mock_load_config.return_value = {
         "api_key": "key",
         "text_model": "openai",
@@ -390,6 +402,8 @@ def test_quick_convert_confirms_overwrite_and_cancels(
 
     assert code == 0
     mock_convert_file.assert_not_called()
+    captured = capsys.readouterr()
+    assert "Overwrite cancelled." in captured.out
 
 
 @patch("builtins.input")
@@ -503,3 +517,44 @@ def test_language_persisted_on_config_cancel(
         if call[0][0].get("language") == "es"
     }
     assert call_with_es, "save_config should have been called with language='es'"
+
+
+@patch("markitdown_pollinations.cli.convert_file")
+def test_run_conversion_empty_no_done_message(mock_convert_file, temp_file, capsys):
+    """Empty content (output_path=None) prints no_output_empty, not 'done:'."""
+    mock_convert_file.return_value = ConversionResult(
+        success=True,
+        output_path=None,
+        warning="no text found",
+    )
+    output_file = str(Path(temp_file).with_suffix(".md"))
+
+    code = _run_conversion(
+        temp_file, output_file, "sk-test-key", "openai", vision_model=None
+    )
+
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "Done:" not in captured.out
+    assert "No content was produced" in captured.out
+
+
+def test_spinner_ascii_only():
+    """Spinner frames contain no Braille Unicode codepoints (U+2800–U+28FF)."""
+    source = inspect.getsource(cli_module)
+    # Find the spinner_frames assignment
+    for line in source.splitlines():
+        if "spinner_frames" in line and "=" in line:
+            # Extract the string value
+            try:
+                stmt = ast.parse(line.strip()).body[0]
+                if isinstance(stmt, ast.Assign):
+                    val = stmt.value
+                    if isinstance(val, ast.Constant) and isinstance(val.value, str):
+                        frames = val.value
+                        for ch in frames:
+                            assert not (0x2800 <= ord(ch) <= 0x28FF), (
+                                f"Non-ASCII char U+{ord(ch):04X} in spinner_frames"
+                            )
+            except Exception:
+                pass
