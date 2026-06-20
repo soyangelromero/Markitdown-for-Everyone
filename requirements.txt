@@ -1,5 +1,6 @@
 # NOTE: prefer 'pip install -e .' which installs these deps plus the package. This file lists deps only.
 markitdown[all]>=0.1.6,<1.0
 markitdown-ocr>=0.1.0,<1.0
+numpy>=1.26,<3.0
 openai>=2.0.0,<3.0
 platformdirs>=4.0.0,<6.0

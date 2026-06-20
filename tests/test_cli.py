@@ -337,7 +337,8 @@ def test_color_respects_no_color(monkeypatch):
     assert _color("hello", "\033[31m") == "hello"
 
 
-def test_color_adds_ansi_when_no_color_not_set():
+def test_color_adds_ansi_when_no_color_not_set(monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
     _reset_no_color_cache()
     assert _color("hello", "\033[31m") == "\033[31mhello\033[0m"
 
