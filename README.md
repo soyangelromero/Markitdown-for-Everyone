@@ -36,6 +36,24 @@ python markitdown_for_everyone.py
 
 On the first run you'll be asked for your API key (hidden while typing), a text model, and a vision model. Your choices are saved to `config.json` in your user config directory (`platformdirs`); you won't need to enter them again. Type `c`, `cancel`, `b`, or `back` at any prompt to go back.
 
+## Development setup
+
+Install the package with development tools:
+
+```bash
+pip install -e ".[dev]"
+```
+
+Run the local checks:
+
+```bash
+ruff check .
+mypy src
+pytest -q
+```
+
+The project declares `numpy` directly because MarkItDown's file-type detection imports `magika`, which imports `numpy` during test collection and normal CLI startup.
+
 ## Usage
 
 Open the interactive menu:
@@ -49,6 +67,8 @@ Convert a file directly:
 ```bash
 python markitdown_for_everyone.py report.pdf -o report.md -m openai
 ```
+
+If the output file already exists, the CLI asks before overwriting it. For unattended scripts, write to a fresh path or remove/rotate the previous output before running the command.
 
 ### Options
 
