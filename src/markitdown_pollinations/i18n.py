@@ -118,7 +118,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "conversion_failed": "Conversion failed: {error}",
         "missing_dep": "Missing dependency: {error}",
         "unexpected_error": "Unexpected error: {error}",
-        "unexpected_error_retries": "Unexpected error after {max_retries} retries: {error}",
         # Config module — warnings / errors
         "config_warn_not_dict": "Warning: Config file is not a dict, using defaults",
         "config_warn_invalid_json": "Warning: Config file contains invalid JSON: {error}",
@@ -242,7 +241,6 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "conversion_failed": "Conversión fallida: {error}",
         "missing_dep": "Dependencia faltante: {error}",
         "unexpected_error": "Error inesperado: {error}",
-        "unexpected_error_retries": "Error inesperado después de {max_retries} reintentos: {error}",
         # Config module — warnings / errors
         "config_warn_not_dict": (
             "Advertencia: El archivo de configuración no es un diccionario, "
