@@ -3,7 +3,7 @@
 [![CI](https://github.com/soyangelromero/Markitdown-for-Everyone/actions/workflows/ci.yml/badge.svg)](https://github.com/soyangelromero/Markitdown-for-Everyone/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Versión](https://img.shields.io/badge/versi%C3%B3n-0.4.0-blue.svg)](CHANGELOG.md)
+[![Versión](https://img.shields.io/badge/versi%C3%B3n-0.4.1-blue.svg)](CHANGELOG.md)
 
 **Español** · [English](README.md)
 
@@ -254,7 +254,7 @@ Se aceptan reportes de bugs, ideas y pull requests. Consulta
 
 ## Registro de cambios
 
-Consulta [CHANGELOG.md](CHANGELOG.md). Historial: `0.4.0` (actual), `0.3.1` y anteriores.
+Consulta [CHANGELOG.md](CHANGELOG.md). Historial: `0.4.1` (actual), `0.4.0`, `0.3.1` y anteriores.
 
 ## Licencia
 
