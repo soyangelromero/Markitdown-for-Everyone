@@ -1,23 +1,48 @@
 [project]
 name = "markitdown-for-everyone"
-version = "0.3.1"
-description = "Command-line interface for converting files to Markdown using Pollinations API"
+dynamic = ["version"]
+description = "Convert PDFs, images, documents and other files to Markdown using MarkItDown and the Pollinations API"
 readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Angel Romero" }]
+keywords = ["markdown", "pdf", "ocr", "markitdown", "pollinations", "cli", "converter"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "Topic :: Utilities",
+]
 dependencies = [
-    "markitdown[all]>=0.1.6,<1.0",
-    "markitdown-ocr>=0.1.0,<1.0",
-    "numpy>=1.26,<3.0",
+    "markitdown[docx,pptx,xlsx,xls,pdf,audio-transcription]>=0.1.9,<0.2.0",
+    "markitdown-ocr>=0.1.2,<0.2.0",
     "openai>=2.0.0,<3.0",
-    "platformdirs>=4.0.0,<6.0",
+    "platformdirs>=4.0.0,<5.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
     "ruff>=0.6.0",
     "mypy>=1.10",
+    "pre-commit>=3.7.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/soyangelromero/Markitdown-for-Everyone"
+Repository = "https://github.com/soyangelromero/Markitdown-for-Everyone"
+Issues = "https://github.com/soyangelromero/Markitdown-for-Everyone/issues"
+Changelog = "https://github.com/soyangelromero/Markitdown-for-Everyone/blob/main/CHANGELOG.md"
 
 [project.scripts]
 markitdown-for-everyone = "markitdown_pollinations.cli:main"
@@ -29,21 +54,46 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.dynamic]
+version = { attr = "markitdown_pollinations.__version__" }
+
+[tool.setuptools.package-data]
+markitdown_pollinations = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = ["--basetemp=.pytest_tmp"]
 cache_dir = ".pytest_cache_runtime"
+filterwarnings = ["error::DeprecationWarning:markitdown_pollinations.*"]
+
+[tool.coverage.run]
+source = ["markitdown_pollinations"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 85
 
 [tool.ruff]
 target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B"]
+select = ["E", "F", "W", "I", "UP", "B", "C901", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
 
 [tool.mypy]
 python_version = "3.10"
 warn_unused_ignores = true
 warn_redundant_casts = true
+warn_return_any = true
 ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+show_error_codes = true
