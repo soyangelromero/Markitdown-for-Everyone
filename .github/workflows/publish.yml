@@ -1,4 +1,4 @@
-name: Publish to PyPI
+﻿name: Publish to PyPI
 
 # This workflow uses PyPI Trusted Publishing (OIDC); no API token is stored in the repo.
 # Before the first run, configure the trusted publisher on PyPI:
@@ -25,9 +25,9 @@ jobs:
     name: Build sdist and wheel
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
