@@ -1,0 +1,55 @@
+name: Publish to PyPI
+
+# This workflow uses PyPI Trusted Publishing (OIDC); no API token is stored in the repo.
+# Before the first run, configure the trusted publisher on PyPI:
+#   https://docs.pypi.org/trusted-publishers/
+#   PyPI project: markitdown-for-everyone
+#   Owner: soyangelromero
+#   Repository: Markitdown-for-Everyone
+#   Workflow: publish.yml
+#   Environment: pypi
+#
+# After that, either run this workflow manually or uncomment the release trigger.
+
+on:
+  workflow_dispatch:
+  # release:
+  #   types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    name: Build sdist and wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build distributions
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
