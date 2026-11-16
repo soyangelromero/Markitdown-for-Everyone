@@ -2,612 +2,706 @@
 
 from __future__ import annotations
 
-import ast
-import inspect
+import locale
+import os
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-import markitdown_pollinations.cli as cli_module
-from markitdown_pollinations.cli import (
-    _ask_file,
-    _ask_model,
-    _ask_output,
-    _clear_screen,
-    _color,
-    _confirm_overwrite,
-    _is_cancel_input,
-    _prompt_for_api_key,
-    _run_conversion,
-    _select_language,
-    main,
-    parse_args,
+import markitdown_pollinations.cli as cli
+import markitdown_pollinations.constants as constants
+import markitdown_pollinations.models as models
+from markitdown_pollinations import __version__
+from markitdown_pollinations.constants import (
+    EXIT_ERROR,
+    EXIT_INTERRUPTED,
+    EXIT_NO_OUTPUT,
+    EXIT_OK,
+    EXIT_USAGE,
 )
-from markitdown_pollinations.constants import _reset_no_color_cache
 from markitdown_pollinations.converter import ConversionResult
-from markitdown_pollinations.validation import _validate_key_via_api
+
+BASE_CONFIG = {
+    "api_key": "sk_configured_key_123",
+    "text_model": "openai",
+    "vision_model": "openai",
+    "language": "en",
+}
+
+
+@pytest.fixture(autouse=True)
+def _offline_catalog(monkeypatch):
+    """Never hit the network from CLI tests by default."""
+    monkeypatch.setattr(cli.models, "fetch_catalog", lambda **kwargs: None)
 
 
 @pytest.fixture
-def temp_file(tmp_path):
-    """Create a temporary text file."""
+def configured(monkeypatch):
+    """Patch config loading for an already-configured user."""
+    monkeypatch.setattr(cli, "load_config", lambda: dict(BASE_CONFIG))
+    monkeypatch.setattr(cli, "save_config", lambda config: True)
+    monkeypatch.setattr(cli, "_stdout_is_tty", lambda: False)
+    monkeypatch.setattr(cli, "_detect_system_language", lambda: "en")
+    return dict(BASE_CONFIG)
+
+
+@pytest.fixture
+def unconfigured(monkeypatch):
+    """Patch config loading for a user without an API key."""
+    monkeypatch.setattr(
+        cli,
+        "load_config",
+        lambda: {**BASE_CONFIG, "api_key": "", "language": ""},
+    )
+    monkeypatch.setattr(cli, "save_config", lambda config: True)
+    monkeypatch.setattr(cli, "_stdout_is_tty", lambda: False)
+    monkeypatch.setattr(cli, "_detect_system_language", lambda: "en")
+
+
+@pytest.fixture
+def temp_input(tmp_path):
     path = tmp_path / "input.txt"
     path.write_text("hello", encoding="utf-8")
     return str(path)
 
 
-def test_parse_args_positional_input():
-    args = parse_args(["file.pdf", "-o", "out.md", "-k", "key", "-m", "openai"])
+def _inputs(*values):
+    return patch("builtins.input", side_effect=list(values))
+
+
+def _password(value):
+    return patch("getpass.getpass", return_value=value)
+
+
+def _conversion_result(**kwargs) -> ConversionResult:
+    defaults = {"success": True, "output_path": "out.md"}
+    defaults.update(kwargs)
+    return ConversionResult(**defaults)
+
+
+def _catalog() -> models.ModelCatalog:
+    return models.ModelCatalog(
+        (
+            models.ModelInfo(
+                name="openai/gpt-5.4-nano",
+                aliases=("openai", "openai-fast"),
+                input_modalities=frozenset({"text", "image"}),
+                paid_only=False,
+            ),
+            models.ModelInfo(
+                name="z-ai/glm-5.2",
+                aliases=("glm",),
+                input_modalities=frozenset({"text"}),
+                paid_only=True,
+            ),
+        )
+    )
+
+
+# ── Arguments, language and version ──────────────────────────────────────────
+
+
+def test_parse_args_quick_convert_flags():
+    args = cli.parse_args(
+        [
+            "file.pdf",
+            "-o",
+            "out.md",
+            "-k",
+            "key",
+            "-m",
+            "openai",
+            "-y",
+            "--non-interactive",
+            "-q",
+        ]
+    )
     assert args.input_file == "file.pdf"
     assert args.output_file == "out.md"
     assert args.api_key == "key"
     assert args.model == "openai"
+    assert args.yes is True
+    assert args.non_interactive is True
+    assert args.quiet is True
 
 
-@patch("markitdown_pollinations.cli.convert_file")
-@patch("markitdown_pollinations.cli.load_config")
-def test_quick_convert_success(mock_load_config, mock_convert_file, temp_file):
-    mock_load_config.return_value = {
-        "api_key": "key",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
-    result = MagicMock()
-    result.success = True
-    result.cancelled = False
-    result.output_path = temp_file.replace(".txt", ".md")
-    result.warning = ""
-    mock_convert_file.return_value = result
+def test_parse_args_defaults():
+    args = cli.parse_args(["file.pdf"])
+    assert args.language is None
+    assert args.yes is False
+    assert args.non_interactive is False
+    assert args.list_models is False
 
-    code = main([temp_file])
 
-    assert code == 0
-    mock_convert_file.assert_called_once()
+@pytest.mark.parametrize("language", ["en", "es"])
+def test_parse_args_language_choices(language):
+    assert cli.parse_args(["--language", language]).language == language
 
 
-@patch("builtins.input")
-@patch("markitdown_pollinations.cli.load_config")
-def test_quick_convert_missing_api_key(mock_load_config, mock_input, temp_file):
-    mock_load_config.return_value = {
-        "api_key": "",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
-    mock_input.return_value = "1"  # language selector -> English
-
-    code = main([temp_file])
-
-    assert code == 1
-
-
-@patch("getpass.getpass")
-@patch("builtins.input")
-@patch("markitdown_pollinations.cli._clear_screen")
-@patch("markitdown_pollinations.cli._validate_key_via_api")
-@patch("markitdown_pollinations.cli.save_config")
-@patch("markitdown_pollinations.cli.load_config")
-def test_setup_wizard_first_run(
-    mock_load_config, mock_save_config, mock_validate, mock_clear, mock_input, mock_getpass
-):
-    mock_load_config.return_value = {
-        "api_key": "",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
-    mock_getpass.return_value = "sk-secret-key-123"
-    mock_input.side_effect = [
-        "1",  # language selector -> English
-        "1",  # text model -> openai
-        "1",  # vision model -> openai
-    ]
-    mock_save_config.return_value = True
-    mock_validate.return_value = "valid"
-
-    # Open configure explicitly; since config is empty, wizard runs
-    code = main(["--configure"])
-
-    assert code == 0
-    # T9c persists language before wizard runs, so save_config is called twice:
-    # 1. Language-only save (api_key still empty at that point)
-    # 2. Full config save after wizard completes
-    mock_save_config.assert_called_with(
-        {
-            "api_key": "sk-secret-key-123",
-            "text_model": "openai",
-            "vision_model": "openai",
-            "language": "en",
-        }  # noqa: E501
-    )
-
-
-@patch("getpass.getpass")
-@patch("builtins.input")
-@patch("markitdown_pollinations.cli._clear_screen")
-@patch("markitdown_pollinations.cli._validate_key_via_api")
-@patch("markitdown_pollinations.cli.save_config")
-@patch("markitdown_pollinations.cli.load_config")
-def test_configure_menu_updates_settings(
-    mock_load_config, mock_save_config, mock_validate, mock_clear, mock_input, mock_getpass
-):
-    mock_load_config.return_value = {
-        "api_key": "old-key",
-        "text_model": "glm",
-        "vision_model": "gemini",
-    }
-    mock_getpass.return_value = "sk-new-key-12345"
-    mock_input.side_effect = [
-        "1",  # language selector -> English
-        "1",  # text model -> openai
-        "2",  # vision model -> openai-large
-    ]
-    mock_save_config.return_value = True
-    mock_validate.return_value = "valid"
-
-    code = main(["--configure"])
-
-    assert code == 0
-    # T9c persists language before configure_menu runs, so save_config is called twice:
-    # 1. Language-only save (with old api_key at that point)
-    # 2. Full config save after configure_menu completes
-    mock_save_config.assert_called_with(
-        {
-            "api_key": "sk-new-key-12345",
-            "text_model": "openai",
-            "vision_model": "openai-large",
-            "language": "en",
-        }
-    )
-
-
-@patch("builtins.input")
-@patch("markitdown_pollinations.cli._clear_screen")
-@patch("markitdown_pollinations.cli.convert_file")
-@patch("markitdown_pollinations.cli.load_config")
-def test_menu_convert_document(
-    mock_load_config, mock_convert_file, mock_clear, mock_input, temp_file
-):
-    mock_load_config.return_value = {
-        "api_key": "key",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
-    # Choose option 3 (document), provide file path, accept default output,
-    # press Enter to continue, then quit
-    mock_input.side_effect = ["3", temp_file, "", "", "5"]
-    result = MagicMock()
-    result.success = True
-    result.cancelled = False
-    result.output_path = temp_file.replace(".txt", ".md")
-    result.warning = ""
-    mock_convert_file.return_value = result
-
-    code = main([])
-
-    assert code == 0
-    mock_convert_file.assert_called_once()
-
-
-@patch("builtins.input")
-@patch("markitdown_pollinations.cli._clear_screen")
-@patch("markitdown_pollinations.cli.load_config")
-def test_menu_quit(mock_load_config, mock_clear, mock_input):
-    mock_load_config.return_value = {
-        "api_key": "key",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
-    mock_input.side_effect = ["5"]
-
-    code = main([])
-
-    assert code == 0
-
-
-@patch("markitdown_pollinations.cli.load_config")
-def test_version_flag(mock_load_config, capsys):
-    """T5.1: --version exits 0 and prints the expected version string."""
-    mock_load_config.return_value = {
-        "api_key": "key",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
-
-    with pytest.raises(SystemExit) as exc_info:
-        main(["--version"])
-
-    assert exc_info.value.code == 0
-    captured = capsys.readouterr()
-    assert "Markitdown-for-everyone 0.3.1" in captured.out
-
-
-@pytest.mark.parametrize("value", ["b", "back", "B", "BACK"])
-def test_is_cancel_input_detects_back_variants(value):
-    """T5.2: _is_cancel_input returns True for back/cancel shortcuts."""
-    assert _is_cancel_input(value) is True
-
-
-@patch("urllib.request.urlopen")
-def test_validate_key_via_api_non_json_balance_response(mock_urlopen):
-    """T5.3: _validate_key_via_api handles non-JSON balance response gracefully."""
-    # Balance endpoint returns non-JSON.
-    mock_resp = MagicMock()
-    mock_resp.read.return_value = b"not json at all"
-    mock_resp.status = 200
-    mock_urlopen.return_value.__enter__.return_value = mock_resp
-
-    # Should not raise; falls through to chat-completion or returns "unknown".
-    result = _validate_key_via_api("sk-test-key")
-
-    # Should fall through without raising.
-    assert result in ("valid", "unknown")
-
-
-def test_no_unicode_arrow_in_cli_output(capsys):
-    """T5.4 + M4: No user-facing strings contain the Unicode arrow \\u2192 or Braille patterns.
-
-    Regression test: a previous version used the Unicode arrow character (→, U+2192)
-    in user-facing strings, which broke on terminals without Unicode support.
-    T10/M4 also removed Braille spinner frames (U+2800–U+28FF) in favour of ASCII.
-    This test ensures neither character class is reintroduced.
-    After T4, validation.py also has user-facing strings — see
-    test_no_unicode_arrow_in_validation_output in test_validation.py.
-    """
-    source = inspect.getsource(cli_module)
-    lines = source.splitlines()
-    violations = []
-    for lineno, line in enumerate(lines, start=1):
-        # Check lines that produce user-visible output.
-        if "print(" in line or 'f"' in line or "f'" in line:
-            if "\\u2192" in line or "→" in line:
-                violations.append(f"line {lineno} (arrow): {line.strip()}")
-            # Braille patterns: U+2800–U+28FF
-            for ch in line:
-                if 0x2800 <= ord(ch) <= 0x28FF:
-                    violations.append(f"line {lineno} (Braille U+{ord(ch):04X}): {line.strip()}")
-                    break
-
-    assert not violations, "Non-ASCII or Braille found in cli.py:\n" + "\n".join(violations)
-
-
-@pytest.mark.parametrize("value", ["c", "C", "cancel", "CANCEL", "  Cancel  "])
-def test_is_cancel_input_detects_cancel_variants(value):
-    assert _is_cancel_input(value) is True
-
-
-def test_is_cancel_input_rejects_regular_text():
-    assert _is_cancel_input("openai") is False
-    assert _is_cancel_input("") is False
-
-
-@patch("getpass.getpass")
-def test_prompt_for_api_key_returns_cancel_token(mock_getpass):
-    mock_getpass.return_value = "c"
-    assert _prompt_for_api_key("") is None
-
-
-@patch("getpass.getpass")
-def test_prompt_for_api_key_keeps_existing_key_on_empty_input(mock_getpass):
-    mock_getpass.return_value = ""
-    assert _prompt_for_api_key("sk-existing-key-123") == "sk-existing-key-123"
-
-
-@patch("builtins.input")
-def test_ask_file_returns_cancel_token(mock_input):
-    mock_input.return_value = "cancel"
-    assert _ask_file("File path") is None
-
-
-@patch("builtins.input")
-def test_ask_output_returns_cancel_token(mock_input):
-    mock_input.return_value = "c"
-    assert _ask_output("input.pdf") is None
-
-
-@patch("builtins.input")
-def test_ask_model_returns_cancel_token(mock_input):
-    mock_input.return_value = "c"
-    assert _ask_model("Pick a model", ["openai", "glm"], "openai") is None
-
-
-@patch("builtins.input")
-def test_confirm_overwrite_allows_existing_file_when_confirmed(mock_input, tmp_path):
-    existing = tmp_path / "out.md"
-    existing.write_text("old", encoding="utf-8")
-    mock_input.return_value = "y"
-    assert _confirm_overwrite(str(existing)) is True
-
-
-@patch("builtins.input")
-def test_confirm_overwrite_rejects_existing_file_by_default(mock_input, tmp_path):
-    existing = tmp_path / "out.md"
-    existing.write_text("old", encoding="utf-8")
-    mock_input.return_value = "n"
-    assert _confirm_overwrite(str(existing)) is False
-
-
-def test_confirm_overwrite_returns_true_for_missing_file(tmp_path):
-    missing = tmp_path / "does-not-exist.md"
-    assert _confirm_overwrite(str(missing)) is True
-
-
-def test_color_respects_no_color(monkeypatch):
-    monkeypatch.setenv("NO_COLOR", "1")
-    _reset_no_color_cache()
-    assert _color("hello", "\033[31m") == "hello"
-
-
-def test_color_adds_ansi_when_no_color_not_set(monkeypatch):
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    _reset_no_color_cache()
-    assert _color("hello", "\033[31m") == "\033[31mhello\033[0m"
-
-
-def test_clear_screen_respects_no_clear(monkeypatch, capsys):
-    monkeypatch.setenv("NO_CLEAR", "1")
-    _clear_screen()
-    captured = capsys.readouterr()
-    assert captured.out == ""
-
-
-def test_clear_screen_emits_ansi_escape_by_default(capsys):
-    _clear_screen()
-    captured = capsys.readouterr()
-    assert captured.out == "\033[2J\033[H"
-
-
-@patch("builtins.input")
-@patch("markitdown_pollinations.cli._clear_screen")
-@patch("markitdown_pollinations.cli.load_config")
-def test_main_handles_keyboard_interrupt_gracefully(mock_load_config, mock_clear, mock_input):
-    mock_load_config.return_value = {
-        "api_key": "key",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
-    mock_input.side_effect = KeyboardInterrupt()
-
-    code = main([])
-
-    assert code == 130
-
-
-@patch("builtins.input")
-@patch("markitdown_pollinations.cli.convert_file")
-@patch("markitdown_pollinations.cli.load_config")
-@patch("markitdown_pollinations.cli._detect_system_language")
-def test_quick_convert_confirms_overwrite_and_cancels(
-    mock_detect, mock_load_config, mock_convert_file, mock_input, temp_file, capsys
-):
-    mock_detect.return_value = "en"
-    mock_load_config.return_value = {
-        "api_key": "key",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
-    # The first input answers the overwrite prompt (n), cancelling conversion.
-    mock_input.return_value = "n"
-    output_path = str(Path(temp_file).with_suffix(".md"))
-    Path(output_path).write_text("old", encoding="utf-8")
-
-    code = main([temp_file])
-
-    assert code == 0
-    mock_convert_file.assert_not_called()
-    captured = capsys.readouterr()
-    assert "Overwrite cancelled." in captured.out
-
-
-@patch("builtins.input")
-def test_select_language_cancel_returns_none(mock_input):
-    """Cancel input returns None instead of a language code."""
-    mock_input.return_value = "c"
-    assert _select_language() is None
-
-
-@patch("builtins.input")
-def test_select_language_invalid_reprompts(mock_input):
-    """Invalid input reprompts; valid input returns the language code."""
-    mock_input.side_effect = ["99", "0", "1"]
-    assert _select_language() == "en"
-
-
-def test_detect_system_language_es(monkeypatch):
-    """Spanish locale is detected and returns 'es'."""
-    import locale
-
-    def fake_getlocale(category):
-        return ("es_ES", "UTF-8")
-
-    monkeypatch.setattr(locale, "getlocale", fake_getlocale)
-    from markitdown_pollinations.cli import _detect_system_language
-
-    assert _detect_system_language() == "es"
-
-
-def test_detect_system_language_fallback_en(monkeypatch):
-    """Both locale sources return None -> defaults to 'en'."""
-    import locale
-
-    calls = []
-
-    def fake_getlocale(category):
-        calls.append(category)
-        return (None, None)
-
-    def fake_getdefaultlocale():
-        return (None, None)
-
-    monkeypatch.setattr(locale, "getlocale", fake_getlocale)
-    monkeypatch.setattr(locale, "getdefaultlocale", fake_getdefaultlocale)
-    from markitdown_pollinations.cli import _detect_system_language
-
-    assert _detect_system_language() == "en"
-
-
-@patch("getpass.getpass")
-@patch("builtins.input")
-@patch("markitdown_pollinations.cli._clear_screen")
-@patch("markitdown_pollinations.cli._detect_system_language")
-@patch("markitdown_pollinations.cli.save_config")
-@patch("markitdown_pollinations.cli.load_config")
-def test_configure_cancel_first_run_prints_message(
-    mock_load_config,
-    mock_save_config,
-    mock_detect_lang,
-    mock_clear,
-    mock_input,
-    mock_getpass,
-    capsys,
-):
-    """First run + --configure: cancelling at API key prompt prints exit message."""
-    mock_load_config.return_value = {
-        "api_key": "",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
-    mock_detect_lang.return_value = "en"
-    mock_getpass.return_value = "c"  # cancel at API key prompt
-    mock_input.side_effect = [
-        "1",  # language selector -> English (accept default)
-        "c",  # cancel at text model prompt
-    ]
-    mock_save_config.return_value = True
-
-    code = main(["--configure"])
-
-    assert code == 0
-    captured = capsys.readouterr()
-    assert "An API key is required to use the program" in captured.err
-
-
-@patch("getpass.getpass")
-@patch("builtins.input")
-@patch("markitdown_pollinations.cli._clear_screen")
-@patch("markitdown_pollinations.cli._detect_system_language")
-@patch("markitdown_pollinations.cli.save_config")
-@patch("markitdown_pollinations.cli.load_config")
-def test_language_persisted_on_config_cancel(
-    mock_load_config, mock_save_config, mock_detect_lang, mock_clear, mock_input, mock_getpass
-):
-    """Language is saved immediately even when user cancels at the next prompt."""
-    mock_load_config.return_value = {
-        "api_key": "",
-        "text_model": "openai",
-        "vision_model": "openai",
-    }
-    mock_detect_lang.return_value = "en"
-    mock_getpass.return_value = "c"  # cancel at text model -> setup_wizard exits early
-    mock_input.side_effect = [
-        "2",  # language selector -> Español (es)
-        "c",  # cancel at text model prompt
-    ]
-    mock_save_config.return_value = True
-
-    code = main(["--configure"])
-
-    assert code == 0
-    # Language was persisted before the cancel at model prompt
-    call_with_es = {
-        call[0][0]["language"]
-        for call in mock_save_config.call_args_list
-        if call[0][0].get("language") == "es"
-    }
-    assert call_with_es, "save_config should have been called with language='es'"
-
-
-@patch("markitdown_pollinations.cli.convert_file")
-def test_run_conversion_empty_no_done_message(mock_convert_file, temp_file, capsys):
-    """Empty content (output_path=None) prints no_output_empty, not 'done:'."""
-    mock_convert_file.return_value = ConversionResult(
-        success=True,
-        output_path=None,
-        warning="no text found",
-    )
-    output_file = str(Path(temp_file).with_suffix(".md"))
-
-    code = _run_conversion(temp_file, output_file, "sk-test-key", "openai", vision_model=None)
-
-    assert code == 0
-    captured = capsys.readouterr()
-    assert "Done:" not in captured.out
-    assert "No content was produced" in captured.out
-
-
-def test_spinner_ascii_only():
-    """Spinner frames contain no Braille Unicode codepoints (U+2800–U+28FF)."""
-    source = inspect.getsource(cli_module)
-    # Find the spinner_frames assignment
-    for line in source.splitlines():
-        if "spinner_frames" in line and "=" in line:
-            # Extract the string value
-            try:
-                stmt = ast.parse(line.strip()).body[0]
-                if isinstance(stmt, ast.Assign):
-                    val = stmt.value
-                    if isinstance(val, ast.Constant) and isinstance(val.value, str):
-                        frames = val.value
-                        for ch in frames:
-                            assert not (0x2800 <= ord(ch) <= 0x28FF), (
-                                f"Non-ASCII char U+{ord(ch):04X} in spinner_frames"
-                            )
-            except Exception:
-                pass
-
-
-def test_parse_args_language_flag():
-    """--language accepts 'en' and 'es' and stores them as args.language."""
-    for lang in ("en", "es"):
-        args = parse_args(["--language", lang, "file.pdf"])
-        assert args.language == lang
-
-    args_default = parse_args(["file.pdf"])
-    assert args_default.language is None
-
-
-def test_language_flag_invalid_rejected():
-    """--language with an invalid value causes SystemExit."""
+def test_parse_args_rejects_unknown_language():
     with pytest.raises(SystemExit):
-        parse_args(["--language", "fr", "file.pdf"])
+        cli.parse_args(["--language", "fr"])
 
 
-@patch("builtins.input")
-@patch("markitdown_pollinations.cli.convert_file")
-@patch("markitdown_pollinations.cli.load_config")
-@patch("markitdown_pollinations.cli._clear_screen")
-def test_language_flag_sets_spanish(
-    mock_clear, mock_load_config, mock_convert_file, mock_input, temp_file, capsys
-):
-    """--language es sets the CLI into Spanish mode."""
-    mock_load_config.return_value = {
-        "api_key": "key",
-        "text_model": "openai",
-        "vision_model": "openai",
+@pytest.mark.parametrize(
+    "value",
+    ["c", "C", "cancel", "cancelar", "b", "back", "volver", "s", "salir", "q", "quit", "exit"],
+)
+def test_is_cancel_input_accepts_shortcuts(value):
+    assert cli._is_cancel_input(value) is True
+
+
+@pytest.mark.parametrize("value", ["openai", "", "123", "salirr"])
+def test_is_cancel_input_rejects_regular_text(value):
+    assert cli._is_cancel_input(value) is False
+
+
+def test_detect_system_language_spanish_locale(monkeypatch):
+    monkeypatch.setattr(locale, "getlocale", lambda: ("es_ES", "UTF-8"))
+    assert cli._detect_system_language() == "es"
+
+
+def test_detect_system_language_windows_spanish_name(monkeypatch):
+    monkeypatch.setattr(locale, "getlocale", lambda: ("Spanish_Colombia", "1252"))
+    assert cli._detect_system_language() == "es"
+
+
+def test_detect_system_language_english_name(monkeypatch):
+    monkeypatch.setattr(locale, "getlocale", lambda: ("English_United States", "1252"))
+    assert cli._detect_system_language() == "en"
+
+
+def test_detect_system_language_falls_back_to_environment(monkeypatch):
+    monkeypatch.setattr(locale, "getlocale", lambda: (None, None))
+    for variable in ("LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"):
+        monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setenv("LANG", "es_CO.UTF-8")
+    assert cli._detect_system_language() == "es"
+
+
+def test_resolve_language_precedence(monkeypatch):
+    monkeypatch.setattr(cli, "_detect_system_language", lambda: "es")
+    assert cli._resolve_language("en", {"language": "es"}) == "en"
+    assert cli._resolve_language(None, {"language": "es"}) == "es"
+    assert cli._resolve_language(None, {"language": ""}) == "es"
+    assert cli._resolve_language(None, {}) == "es"
+
+
+def test_prescan_language():
+    assert cli._prescan_language(["-l", "es", "file.pdf"]) == "es"
+    assert cli._prescan_language(["--language=en"]) == "en"
+    assert cli._prescan_language(["--language", "fr"]) is None
+    assert cli._prescan_language(["file.pdf"]) is None
+
+
+def test_help_is_localized_from_saved_language(configured, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "load_config", lambda: {**BASE_CONFIG, "language": "es"})
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["--help"])
+    assert excinfo.value.code == 0
+    assert "Idioma de la interfaz" in capsys.readouterr().out
+
+
+def test_version_uses_single_source(configured, capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["--version"])
+    assert excinfo.value.code == 0
+    assert f"Markitdown-for-everyone {__version__}" in capsys.readouterr().out
+
+
+def test_saved_language_is_used_at_startup(configured, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "load_config", lambda: {**BASE_CONFIG, "language": "es"})
+    with _inputs("5"):
+        assert cli.main([]) == EXIT_OK
+    assert "por Angel Romero" in capsys.readouterr().out
+
+
+def test_cli_language_overrides_saved_language(configured, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "load_config", lambda: {**BASE_CONFIG, "language": "es"})
+    with _inputs("5"):
+        assert cli.main(["--language", "en"]) == EXIT_OK
+    assert "by Angel Romero" in capsys.readouterr().out
+
+
+def test_quiet_suppresses_banner(configured, capsys):
+    with _inputs("5"):
+        assert cli.main(["--quiet"]) == EXIT_OK
+    output = capsys.readouterr().out
+    assert "Angel Romero" not in output
+    assert "Goodbye" in output
+
+
+# ── Prompts ──────────────────────────────────────────────────────────────────
+
+
+def test_prompt_for_api_key_keeps_current(monkeypatch):
+    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "")
+    assert cli._prompt_for_api_key("sk_existing_123456") == "sk_existing_123456"
+
+
+def test_prompt_for_api_key_cancel(monkeypatch):
+    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "c")
+    assert cli._prompt_for_api_key("") is None
+
+
+def test_prompt_for_api_key_requires_value_when_empty(monkeypatch, capsys):
+    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "   ")
+    assert cli._prompt_for_api_key("") is None
+    assert "required" in capsys.readouterr().err
+
+
+def test_prompt_for_api_key_marks_environment_source(monkeypatch):
+    prompts: list[str] = []
+
+    def fake_getpass(prompt):
+        prompts.append(prompt)
+        return ""
+
+    monkeypatch.setattr(cli.getpass, "getpass", fake_getpass)
+    assert cli._prompt_for_api_key("sk_env_key_123456", from_env=True) == "sk_env_key_123456"
+    assert "from environment" in prompts[0]
+
+
+def test_ask_file_retries_then_cancels(capsys):
+    with _inputs("missing.txt", "cancel"):
+        assert cli._ask_file("File path") is None
+    assert "File not found" in capsys.readouterr().err
+
+
+def test_ask_output_rejects_input_path(temp_input):
+    with _inputs(temp_input, ""):
+        output = cli._ask_output(temp_input)
+    assert output is not None
+    assert output != temp_input
+    assert output.endswith(".md")
+
+
+def test_confirm_overwrite_cases(tmp_path):
+    missing = tmp_path / "missing.md"
+    assert cli._confirm_overwrite(str(missing)) is True
+
+    existing = tmp_path / "existing.md"
+    existing.write_text("old", encoding="utf-8")
+    with _inputs("y"):
+        assert cli._confirm_overwrite(str(existing)) is True
+    with _inputs("n"):
+        assert cli._confirm_overwrite(str(existing)) is False
+    assert cli._confirm_overwrite(str(existing), assume_yes=True) is True
+    with pytest.raises(cli.NonInteractiveError):
+        cli._confirm_overwrite(str(existing), non_interactive=True)
+
+
+def test_ask_model_selects_recommendation(monkeypatch, capsys):
+    monkeypatch.setattr(cli.models, "fetch_catalog", lambda **kwargs: _catalog())
+    with _inputs("1"):
+        assert cli._ask_model("Model", ["openai", "glm"], "openai") == "openai"
+    assert "(vision)" in capsys.readouterr().out
+
+
+def test_ask_model_other_warns_unknown(monkeypatch, capsys):
+    monkeypatch.setattr(cli.models, "fetch_catalog", lambda **kwargs: _catalog())
+    with _inputs("0", "mystery-model"):
+        assert cli._ask_model("Model", ["openai"], "openai") == "mystery-model"
+    assert "not found in the live catalog" in capsys.readouterr().err
+
+
+def test_ask_model_warns_non_vision(monkeypatch, capsys):
+    monkeypatch.setattr(cli.models, "fetch_catalog", lambda **kwargs: _catalog())
+    with _inputs("1"):
+        assert cli._ask_model("Model", ["glm"], "glm", vision=True) == "glm"
+    assert "does not accept image input" in capsys.readouterr().err
+
+
+def test_ask_model_cancel(monkeypatch):
+    monkeypatch.setattr(cli.models, "fetch_catalog", lambda **kwargs: None)
+    with _inputs("c"):
+        assert cli._ask_model("Model", ["openai"], "openai") is None
+
+
+def test_ask_model_invalid_then_valid(monkeypatch):
+    monkeypatch.setattr(cli.models, "fetch_catalog", lambda **kwargs: None)
+    with _inputs("99", "1"):
+        assert cli._ask_model("Model", ["openai"], "openai") == "openai"
+
+
+# ── Configuration flows ──────────────────────────────────────────────────────
+
+
+def test_configure_updates_models(configured, monkeypatch):
+    saved: list[dict] = []
+    monkeypatch.setattr(cli, "_validate_key_via_api", lambda key: "valid")
+    monkeypatch.setattr(cli, "save_config", lambda config: saved.append(dict(config)) or True)
+    with _inputs("1", "1", "2"), _password("sk_new_key_123456"):
+        assert cli.main(["--configure"]) == EXIT_OK
+
+    final = saved[-1]
+    assert final["api_key"] == "sk_new_key_123456"
+    assert final["text_model"] == "openai"
+    assert final["vision_model"] == "openai-large"
+    assert final["language"] == "en"
+
+
+def test_configure_continues_when_validation_is_offline(configured, monkeypatch, capsys):
+    saved: list[dict] = []
+    monkeypatch.setattr(cli, "_validate_key_via_api", lambda key: "unknown")
+    monkeypatch.setattr(cli, "save_config", lambda config: saved.append(dict(config)) or True)
+    with _inputs("1", "1", "1"), _password("sk_new_key_123456"):
+        assert cli.main(["--configure"]) == EXIT_OK
+    assert saved
+    assert "could not verify" in capsys.readouterr().out
+
+
+def test_configure_cancel_at_key_prompt(unconfigured, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "_validate_key_via_api", lambda key: "valid")
+    with _inputs("1"), _password("c"):
+        assert cli.main(["--configure"]) == EXIT_OK
+    assert "required to use the program" in capsys.readouterr().err
+
+
+def test_configure_cancel_at_language_selector(configured, capsys):
+    with _inputs("c"):
+        assert cli.main(["--configure"]) == EXIT_OK
+    assert "required to use the program" in capsys.readouterr().err
+
+
+def test_configure_keeps_env_key_marker(monkeypatch):
+    saved: list[dict] = []
+    config = {
+        **BASE_CONFIG,
+        "api_key": "env_key",
+        "api_key_from_env": True,
     }
-    result = MagicMock()
-    result.success = True
-    result.cancelled = False
-    result.output_path = temp_file.replace(".txt", ".md")
-    result.warning = ""
-    mock_convert_file.return_value = result
+    monkeypatch.setattr(cli, "load_config", lambda: dict(config))
+    monkeypatch.setattr(cli, "_stdout_is_tty", lambda: False)
+    monkeypatch.setattr(cli, "_detect_system_language", lambda: "en")
+    monkeypatch.setattr(cli, "_validate_key_via_api", lambda key: "valid")
+    monkeypatch.setattr(cli, "save_config", lambda value: saved.append(dict(value)) or True)
 
-    code = main(["--language", "es", temp_file])
+    with _inputs("1", "1", "1"), _password(""):
+        assert cli.main(["--configure"]) == EXIT_OK
 
-    assert code == 0
-    captured = capsys.readouterr()
-    # Banner tagline "por Angel Romero" appears only in Spanish
-    assert "por" in captured.out
-
-
-def test_verbose_flag_sets_info_level():
-    """--verbose sets args.verbose to True."""
-    args = parse_args(["--verbose", "file.pdf"])
-    assert args.verbose is True
-    assert args.debug is False
+    final = saved[-1]
+    assert final["api_key"] == "env_key"
+    assert final["api_key_from_env"] is True
 
 
-def test_debug_flag_sets_debug_level():
-    """--debug configures logging at DEBUG level."""
-    args = parse_args(["--debug", "file.pdf"])
-    assert args.debug is True
-    assert args.verbose is False
+def test_configure_new_key_clears_env_marker(monkeypatch):
+    saved: list[dict] = []
+    config = {**BASE_CONFIG, "api_key": "env_key", "api_key_from_env": True}
+    monkeypatch.setattr(cli, "load_config", lambda: dict(config))
+    monkeypatch.setattr(cli, "_stdout_is_tty", lambda: False)
+    monkeypatch.setattr(cli, "_detect_system_language", lambda: "en")
+    monkeypatch.setattr(cli, "_validate_key_via_api", lambda key: "valid")
+    monkeypatch.setattr(cli, "save_config", lambda value: saved.append(dict(value)) or True)
+
+    with _inputs("1", "1", "1"), _password("sk_manual_key_123456"):
+        assert cli.main(["--configure"]) == EXIT_OK
+
+    final = saved[-1]
+    assert final["api_key"] == "sk_manual_key_123456"
+    assert "api_key_from_env" not in final
+
+
+def test_first_run_wizard_on_menu(monkeypatch):
+    saved: list[dict] = []
+    monkeypatch.setattr(
+        cli,
+        "load_config",
+        lambda: {**BASE_CONFIG, "api_key": "", "language": ""},
+    )
+    monkeypatch.setattr(cli, "_stdout_is_tty", lambda: False)
+    monkeypatch.setattr(cli, "_detect_system_language", lambda: "en")
+    monkeypatch.setattr(cli, "_validate_key_via_api", lambda key: "valid")
+    monkeypatch.setattr(cli, "save_config", lambda config: saved.append(dict(config)) or True)
+
+    with _inputs("1", "1", "1", "5"), _password("sk_first_run_123456"):
+        assert cli.main([]) == EXIT_OK
+
+    assert saved[-1]["api_key"] == "sk_first_run_123456"
+
+
+def test_non_interactive_configure_is_rejected(configured):
+    with patch("builtins.input", side_effect=AssertionError("input must not be called")):
+        assert cli.main(["--configure", "--non-interactive"]) == EXIT_USAGE
+
+
+# ── Menu ─────────────────────────────────────────────────────────────────────
+
+
+def test_menu_quit(configured, capsys):
+    with _inputs("5"):
+        assert cli.main([]) == EXIT_OK
+    assert "Goodbye" in capsys.readouterr().out
+
+
+def test_menu_convert_document(configured, temp_input, monkeypatch):
+    monkeypatch.setattr(cli, "convert_file", lambda *args: _conversion_result())
+    with _inputs("3", temp_input, "", "", "5"):
+        assert cli.main([]) == EXIT_OK
+
+
+def test_menu_convert_image_without_key(tmp_path, monkeypatch, capsys):
+    image = tmp_path / "image.png"
+    image.write_text("not-really-an-image", encoding="utf-8")
+    convert = MagicMock()
+    monkeypatch.setattr(cli, "convert_file", convert)
+    config = {**BASE_CONFIG, "api_key": ""}
+
+    with _inputs(str(image), ""):
+        code = cli.convert_menu_option(config, "Image")
+
+    assert code == EXIT_ERROR
+    convert.assert_not_called()
+    assert "API key is required to convert images" in capsys.readouterr().err
+
+
+def test_menu_option_four_changes_language(configured, monkeypatch):
+    saved: list[dict] = []
+    monkeypatch.setattr(cli, "save_config", lambda config: saved.append(dict(config)) or True)
+    with _inputs("4", "2", "c", "", "5"), _password("c"):
+        assert cli.main([]) == EXIT_OK
+    assert any(config.get("language") == "es" for config in saved)
+
+
+def test_menu_invalid_option(configured, capsys):
+    with _inputs("9", "", "5"):
+        assert cli.main([]) == EXIT_OK
+    assert "Invalid option" in capsys.readouterr().out
+
+
+# ── Quick conversion ─────────────────────────────────────────────────────────
+
+
+def test_quick_convert_success(configured, temp_input, monkeypatch):
+    convert = MagicMock(return_value=_conversion_result())
+    monkeypatch.setattr(cli, "convert_file", convert)
+
+    assert cli.main([temp_input]) == EXIT_OK
+    args = convert.call_args.args
+    assert args[0] == temp_input
+    assert args[1] == str(Path(temp_input).with_suffix(".md"))
+    assert args[2] == BASE_CONFIG["api_key"]
+    assert args[3] == "openai"
+
+
+def test_quick_convert_without_key_allows_text_formats(unconfigured, temp_input, monkeypatch):
+    convert = MagicMock(return_value=_conversion_result())
+    monkeypatch.setattr(cli, "convert_file", convert)
+
+    assert cli.main([temp_input]) == EXIT_OK
+    assert convert.call_args.args[2] is None
+
+
+def test_quick_convert_image_requires_key(unconfigured, tmp_path, monkeypatch, capsys):
+    image = tmp_path / "photo.png"
+    image.write_text("x", encoding="utf-8")
+    convert = MagicMock()
+    monkeypatch.setattr(cli, "convert_file", convert)
+
+    assert cli.main([str(image)]) == EXIT_ERROR
+    convert.assert_not_called()
+    assert "API key is required to convert images" in capsys.readouterr().err
+
+
+def test_quick_convert_missing_file(configured, capsys):
+    assert cli.main(["does-not-exist.txt"]) == EXIT_USAGE
+    assert "File not found" in capsys.readouterr().err
+
+
+def test_quick_convert_rejects_output_same_as_input(configured, temp_input, monkeypatch, capsys):
+    convert = MagicMock()
+    monkeypatch.setattr(cli, "convert_file", convert)
+
+    assert cli.main([temp_input, "-o", temp_input]) == EXIT_USAGE
+    convert.assert_not_called()
+    assert "different from" in capsys.readouterr().err
+
+
+def test_quick_convert_non_interactive_overwrite_requires_yes(
+    configured, temp_input, monkeypatch, capsys
+):
+    output = Path(temp_input).with_suffix(".md")
+    output.write_text("old", encoding="utf-8")
+    convert = MagicMock()
+    monkeypatch.setattr(cli, "convert_file", convert)
+
+    assert cli.main([temp_input, "--non-interactive"]) == EXIT_USAGE
+    convert.assert_not_called()
+    assert "--yes" in capsys.readouterr().err
+
+
+def test_quick_convert_overwrite_with_yes(configured, temp_input, monkeypatch):
+    output = Path(temp_input).with_suffix(".md")
+    output.write_text("old", encoding="utf-8")
+    convert = MagicMock(return_value=_conversion_result())
+    monkeypatch.setattr(cli, "convert_file", convert)
+
+    assert cli.main([temp_input, "--yes"]) == EXIT_OK
+    convert.assert_called_once()
+
+
+def test_quick_convert_overwrite_declined(configured, temp_input, monkeypatch, capsys):
+    output = Path(temp_input).with_suffix(".md")
+    output.write_text("old", encoding="utf-8")
+    convert = MagicMock()
+    monkeypatch.setattr(cli, "convert_file", convert)
+
+    with _inputs("n"):
+        assert cli.main([temp_input]) == EXIT_OK
+    convert.assert_not_called()
+    assert "Overwrite cancelled" in capsys.readouterr().out
+
+
+def test_quick_convert_failure_exit_code(configured, temp_input, monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "convert_file",
+        lambda *args: ConversionResult(success=False, message="boom"),
+    )
+    assert cli.main([temp_input]) == EXIT_ERROR
+
+
+def test_quick_convert_no_output_exit_code(configured, temp_input, monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "convert_file",
+        lambda *args: ConversionResult(success=True, warning="empty"),
+    )
+    assert cli.main([temp_input]) == EXIT_NO_OUTPUT
+
+
+def test_vision_fallback_retries_with_different_model(configured, tmp_path, monkeypatch, capsys):
+    source = tmp_path / "input.txt"
+    source.write_text("hi", encoding="utf-8")
+    convert = MagicMock(
+        side_effect=[
+            ConversionResult(success=True, warning="empty"),
+            ConversionResult(success=True, output_path="out.md"),
+        ]
+    )
+    monkeypatch.setattr(cli, "convert_file", convert)
+
+    code = cli._run_conversion(str(source), "out.md", "key", "text-model", "vision-model")
+    assert code == EXIT_OK
+    assert convert.call_count == 2
+    assert convert.call_args.args[3] == "vision-model"
+    assert "retrying with vision model" in capsys.readouterr().out
+
+
+def test_vision_fallback_skipped_for_same_model(configured, tmp_path, monkeypatch):
+    source = tmp_path / "input.txt"
+    source.write_text("hi", encoding="utf-8")
+    convert = MagicMock(return_value=ConversionResult(success=True, warning="empty"))
+    monkeypatch.setattr(cli, "convert_file", convert)
+
+    code = cli._run_conversion(str(source), "out.md", "key", "openai", "openai")
+    assert code == EXIT_NO_OUTPUT
+    assert convert.call_count == 1
+
+
+def test_vision_fallback_skipped_for_images(configured, tmp_path, monkeypatch):
+    source = tmp_path / "input.png"
+    source.write_text("hi", encoding="utf-8")
+    convert = MagicMock(return_value=ConversionResult(success=True, warning="empty"))
+    monkeypatch.setattr(cli, "convert_file", convert)
+
+    code = cli._run_conversion(str(source), "out.md", "key", "openai", "claude")
+    assert code == EXIT_NO_OUTPUT
+    assert convert.call_count == 1
+
+
+# ── Non-interactive input, interrupts and terminal behaviour ─────────────────
+
+
+def test_main_eof_returns_usage(configured, capsys):
+    with patch("builtins.input", side_effect=EOFError):
+        assert cli.main([]) == EXIT_USAGE
+    assert "stdin is closed" in capsys.readouterr().err
+
+
+def test_quick_convert_eof_at_overwrite_returns_usage(configured, temp_input, capsys):
+    output = Path(temp_input).with_suffix(".md")
+    output.write_text("old", encoding="utf-8")
+    with patch("builtins.input", side_effect=EOFError):
+        assert cli.main([temp_input]) == EXIT_USAGE
+    assert "interactive input" in capsys.readouterr().err
+
+
+def test_keyboard_interrupt_returns_130(configured):
+    with patch("builtins.input", side_effect=KeyboardInterrupt):
+        assert cli.main([]) == EXIT_INTERRUPTED
+
+
+def test_keyboard_interrupt_during_conversion_returns_130(configured, temp_input, monkeypatch):
+    monkeypatch.setattr(cli, "convert_file", MagicMock(side_effect=KeyboardInterrupt))
+    assert cli.main([temp_input]) == EXIT_INTERRUPTED
+
+
+def test_main_non_interactive_without_input(configured, capsys):
+    assert cli.main(["--non-interactive"]) == EXIT_USAGE
+    assert "non-interactive" in capsys.readouterr().err
+
+
+def test_clear_screen_respects_tty_and_no_clear(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "_stdout_is_tty", lambda: False)
+    cli._clear_screen()
+    assert capsys.readouterr().out == ""
+
+    monkeypatch.setattr(cli, "_stdout_is_tty", lambda: True)
+    cli._clear_screen()
+    assert capsys.readouterr().out == "\033[2J\033[H"
+
+    monkeypatch.setenv("NO_CLEAR", "1")
+    cli._clear_screen()
+    assert capsys.readouterr().out == ""
+
+
+def test_color_helpers(monkeypatch):
+    monkeypatch.setattr(constants, "_color_cache", True)
+    assert constants._color("hello", "\033[31m") == "\033[31mhello\033[0m"
+
+    monkeypatch.setattr(constants, "_color_cache", False)
+    assert constants._color("hello", "\033[31m") == "hello"
+
+
+def test_spinner_disabled_is_silent(capsys):
+    with cli._Spinner(enabled=False):
+        pass
+    assert capsys.readouterr().out == ""
+
+
+def test_list_models_offline(configured, capsys):
+    assert cli.main(["--list-models"]) == EXIT_OK
+    output = capsys.readouterr().out
+    assert "built-in list" in output
+    assert "openai" in output
+
+
+def test_list_models_with_catalog(configured, monkeypatch, capsys):
+    monkeypatch.setattr(cli.models, "fetch_catalog", lambda **kwargs: _catalog())
+    assert cli.main(["--list-models"]) == EXIT_OK
+    assert "openai (vision)" in capsys.readouterr().out
+
+
+def test_module_entrypoint_version():
+    repo_root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(repo_root / "src")
+    process = subprocess.run(
+        [sys.executable, "-m", "markitdown_pollinations", "--version"],
+        cwd=repo_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert process.returncode == 0
+    assert __version__ in process.stdout
+
+
+def test_cancel_exit_returns_ok():
+    assert cli._cancel_exit() == EXIT_OK
