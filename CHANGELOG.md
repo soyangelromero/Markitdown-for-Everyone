@@ -7,6 +7,15 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-11-16
+
+### Fixed
+
+- Specific API error messages (401 invalid key, 402 insufficient pollen, 403
+  permission, 429 rate limit) were lost when MarkItDown wrapped the original
+  exception in `FileConversionException`. The stored attempt chain is now
+  inspected, so users see the actionable message again.
+
 ## [0.4.0] — 2026-11-16
 
 A maintenance and usability release: fixes the known bugs from the 0.3.1 review, updates
