@@ -349,3 +349,65 @@ def test_convert_uses_spanish_prompt(tmp_path):
 
     prompt = mock_md.call_args.kwargs["llm_prompt"]
     assert prompt.startswith("Describe esta imagen")
+
+
+def _wrapped(exc: Exception) -> FileConversionException:
+    """Build a MarkItDown wrapper that keeps *exc* in its attempts list."""
+    from types import SimpleNamespace
+
+    return FileConversionException(
+        "file conversion failed",
+        attempts=[SimpleNamespace(exc_info=(type(exc), exc, None))],
+    )
+
+
+def test_nested_authentication_error_uses_specific_message(tmp_path):
+    input_file = _make_input(tmp_path)
+    output_file = tmp_path / "output.md"
+
+    with patch("markitdown_pollinations.converter.MarkItDown") as mock_md:
+        mock_md.return_value.convert.side_effect = _wrapped(_authentication_error())
+        result = convert_file(str(input_file), str(output_file), "key", "openai")
+
+    assert result.success is False
+    assert "Invalid API key" in result.message
+
+
+def test_nested_insufficient_balance_uses_specific_message(tmp_path):
+    input_file = _make_input(tmp_path)
+    output_file = tmp_path / "output.md"
+
+    with patch("markitdown_pollinations.converter.MarkItDown") as mock_md:
+        mock_md.return_value.convert.side_effect = _wrapped(_status_error(402))
+        result = convert_file(str(input_file), str(output_file), "key", "openai")
+
+    assert result.success is False
+    assert "Insufficient pollen" in result.message
+
+
+def test_nested_connection_error_retries(tmp_path):
+    input_file = _make_input(tmp_path)
+    output_file = tmp_path / "output.md"
+
+    with patch("markitdown_pollinations.converter.time.sleep"):
+        with patch("markitdown_pollinations.converter.MarkItDown") as mock_md:
+            mock_md.return_value.convert.side_effect = [
+                _wrapped(APIConnectionError(request=MagicMock())),
+                _converted(),
+            ]
+            result = convert_file(str(input_file), str(output_file), "key", "openai")
+
+    assert result.success is True
+    assert mock_md.return_value.convert.call_count == 2
+
+
+def test_nested_unknown_error_falls_back_to_conversion_failed(tmp_path):
+    input_file = _make_input(tmp_path)
+    output_file = tmp_path / "output.md"
+
+    with patch("markitdown_pollinations.converter.MarkItDown") as mock_md:
+        mock_md.return_value.convert.side_effect = _wrapped(ValueError("boom"))
+        result = convert_file(str(input_file), str(output_file), "key", "openai")
+
+    assert result.success is False
+    assert "Conversion failed" in result.message
