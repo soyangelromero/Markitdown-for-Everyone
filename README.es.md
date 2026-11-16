@@ -3,17 +3,28 @@
 [![CI](https://github.com/soyangelromero/Markitdown-for-Everyone/actions/workflows/ci.yml/badge.svg)](https://github.com/soyangelromero/Markitdown-for-Everyone/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Versión](https://img.shields.io/badge/versi%C3%B3n-0.4.0-blue.svg)](CHANGELOG.md)
+[![Versión](https://img.shields.io/badge/versi%C3%B3n-0.4.1-blue.svg)](CHANGELOG.md)
 
 **Español** · [English](README.md)
 
-Herramienta de línea de comandos que convierte PDFs, imágenes, documentos de Office, audio
-y otros archivos a Markdown usando [MarkItDown](https://github.com/microsoft/markitdown) y
-la [API de Pollinations](https://pollinations.ai). Interfaz bilingüe (español/inglés), menú
-interactivo para personas y opciones no interactivas para scripts.
+**Convierte PDFs escaneados, imágenes y documentos de Office a Markdown desde tu terminal, con una clave gratuita de Pollinations.** OCR incluido, sin GPU ni Docker, bilingüe (español/inglés), con menú interactivo y opciones para scripts.
 
-> **Aún no está en PyPI.** Instálala desde el código fuente con `pip`, `pipx` o `uv`.
-> Consulta [Instalación](#instalación).
+![Demo de terminal: versión, OCR de un PDF escaneado y catálogo de modelos](docs/demo.gif)
+
+> Proyecto independiente construido sobre [MarkItDown](https://github.com/microsoft/markitdown) de Microsoft. No está afiliado a Microsoft. Consulta [Créditos](#créditos).
+
+## ¿Por qué esta herramienta?
+
+| | **Markitdown-for-Everyone** | MarkItDown CLI (base) | Conversores online |
+|---|---|---|---|
+| Clave gratuita de Pollinations, sin cuenta OpenAI/Azure | ✅ | ❌ (trae tu clave LLM) | varía |
+| OCR de PDFs escaneados sin configuración extra | ✅ incluido | ⚠️ instalar/configurar `markitdown-ocr` + LLM | ✅ pero de pago/subida |
+| Interfaz bilingüe y prompts de OCR localizados | ✅ ES/EN | ❌ solo inglés | varía |
+| Se ejecuta en local, sin GPU, sin Docker, sin subir archivos | ✅ | ✅ | ❌ sube los archivos |
+| Menú interactivo **y** opciones no interactivas | ✅ | solo flags | solo GUI |
+| Coste aproximado | ~0,0002 pollen por documento con LLM | depende del proveedor | suscripción |
+
+La idea no es reemplazar MarkItDown: lo envuelve con un backend Pollinations listo para usar, OCR activado por defecto, una experiencia bilingüe y un menú que cualquier persona puede seguir.
 
 ## Características
 
@@ -39,6 +50,22 @@ interactivo para personas y opciones no interactivas para scripts.
 
 Requiere **Python 3.10+** y conexión a internet para las conversiones con LLM.
 
+### Instalación en una línea
+
+```bash
+# CLI aislada con uv (recomendado)
+uvx --from git+https://github.com/soyangelromero/Markitdown-for-Everyone.git markitdown-for-everyone
+
+# O instálala como herramienta con pipx
+pipx install git+https://github.com/soyangelromero/Markitdown-for-Everyone.git
+```
+
+> **La publicación en PyPI está pendiente.** Mientras tanto, instala desde Git como arriba o
+> descarga el wheel de la [última release](https://github.com/soyangelromero/Markitdown-for-Everyone/releases)
+> y ejecuta `pipx install ./markitdown_for_everyone-0.4.1-py3-none-any.whl`.
+
+### Desde un clon (desarrollo)
+
 ```bash
 git clone https://github.com/soyangelromero/Markitdown-for-Everyone.git
 cd Markitdown-for-Everyone
@@ -51,15 +78,6 @@ python -m venv .venv
 source .venv/bin/activate
 
 pip install -e .
-```
-
-También puedes instalarla como CLI aislada con [pipx](https://pipx.pypa.io/) o
-[uv](https://docs.astral.sh/uv/):
-
-```bash
-pipx install git+https://github.com/soyangelromero/Markitdown-for-Everyone.git
-# o
-uv tool install git+https://github.com/soyangelromero/Markitdown-for-Everyone.git
 ```
 
 ### Obtener una clave API
@@ -232,6 +250,12 @@ pytest -q --cov
 El proyecto soporta Python 3.10–3.13. La CI ejecuta lint, tipos y pruebas en Ubuntu, Windows
 y macOS.
 
+La animación del README se genera a partir de la salida real del CLI:
+
+```bash
+python scripts/generate_demo.py   # genera docs/demo.gif y docs/demo.png
+```
+
 ### Estructura del proyecto
 
 ```text
@@ -254,7 +278,7 @@ Se aceptan reportes de bugs, ideas y pull requests. Consulta
 
 ## Registro de cambios
 
-Consulta [CHANGELOG.md](CHANGELOG.md). Historial: `0.4.0` (actual), `0.3.1` y anteriores.
+Consulta [CHANGELOG.md](CHANGELOG.md). Historial: `0.4.1` (actual), `0.4.0`, `0.3.1` y anteriores.
 
 ## Licencia
 

@@ -161,7 +161,7 @@ def test_save_config_sets_owner_only_permissions(isolated_config, monkeypatch):
     def fake_chmod(path, mode):
         chmod_calls.append((str(path), mode))
 
-    monkeypatch.setattr(config_module.os, "name", "posix")
+    monkeypatch.setattr(config_module, "_is_windows", lambda: False)
     monkeypatch.setattr(config_module.os, "chmod", fake_chmod)
 
     assert (
@@ -179,7 +179,7 @@ def test_save_config_skips_chmod_on_windows(isolated_config, monkeypatch):
     def fake_chmod(path, mode):
         chmod_calls.append((str(path), mode))
 
-    monkeypatch.setattr(config_module.os, "name", "nt")
+    monkeypatch.setattr(config_module, "_is_windows", lambda: True)
     monkeypatch.setattr(config_module.os, "chmod", fake_chmod)
 
     assert (
