@@ -23,7 +23,10 @@ wheels/
 .pytest_cache_runtime/
 .pytest_tmp/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
+.mypy_cache/
 
 # Virtual environment
 .venv/
