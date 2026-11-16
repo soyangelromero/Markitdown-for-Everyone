@@ -143,6 +143,11 @@ def _read_persisted_api_key() -> str:
     return ""
 
 
+def _is_windows() -> bool:
+    """Return True on Windows (kept as a helper so tests can inject it)."""
+    return os.name == "nt"
+
+
 def _atomic_write(payload: dict[str, str]) -> None:
     """Write *payload* atomically with owner-only permissions on POSIX."""
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -152,7 +157,7 @@ def _atomic_write(payload: dict[str, str]) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2, ensure_ascii=False)
             handle.write("\n")
-        if os.name != "nt":
+        if not _is_windows():
             os.chmod(tmp_path, 0o600)
         os.replace(tmp_path, CONFIG_FILE)
     except BaseException:

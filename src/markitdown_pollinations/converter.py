@@ -225,25 +225,53 @@ def _classify_api_error(exc: Exception, context: _Context) -> _Failure | None:
     return None
 
 
+def _nested_api_failure(exc: FileConversionException, context: _Context) -> _Failure | None:
+    """Map the original API error stored inside MarkItDown's wrapper.
+
+    ``FileConversionException.attempts`` keeps ``exc_info`` tuples for every
+    converter that failed, so an underlying 401/402/403/429 can still produce a
+    specific message instead of a generic "conversion failed".
+    """
+    attempts = getattr(exc, "attempts", None)
+    if not attempts:
+        return None
+    for attempt in attempts:
+        exc_info = getattr(attempt, "exc_info", None)
+        if not exc_info:
+            continue
+        original = exc_info[1]
+        if not isinstance(original, Exception):
+            continue
+        for handler in _API_HANDLERS:
+            failure = handler(original, context)
+            if failure is not None:
+                return failure
+    return None
+
+
 def _classify_conversion_error(exc: Exception, context: _Context) -> _Failure | None:
     if isinstance(exc, MissingDependencyException):
         return _Failure(_("missing_dep").format(error=exc))
     if isinstance(exc, UnsupportedFormatException):
         return _Failure(_("unsupported_format").format(ext=context.suffix))
     if isinstance(exc, FileConversionException):
+        nested = _nested_api_failure(exc, context)
+        if nested is not None:
+            return nested
         return _Failure(_("conversion_failed").format(error=exc))
     return None
 
 
-_HANDLERS: tuple[_Handler, ...] = (
+_API_HANDLERS: tuple[_Handler, ...] = (
     _classify_connection,
     _classify_auth,
     _classify_rate_limit,
     _classify_not_found,
     _classify_http_status,
     _classify_api_error,
-    _classify_conversion_error,
 )
+
+_HANDLERS: tuple[_Handler, ...] = (*_API_HANDLERS, _classify_conversion_error)
 
 
 def _classify_exception(exc: Exception, context: _Context) -> _Failure:
