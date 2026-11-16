@@ -22,7 +22,7 @@ catalog that marks free vs paid models, MIT license, Python 3.10+.
 Demo GIF: <https://github.com/soyangelromero/Markitdown-for-Everyone/blob/main/docs/demo.gif>
 
 ```bash
-uvx --from git+https://github.com/soyangelromero/Markitdown-for-Everyone.git markitdown-for-everyone
+uvx markitdown-for-everyone
 ```
 
 Repo: <https://github.com/soyangelromero/Markitdown-for-Everyone>
@@ -45,10 +45,10 @@ OCR prompts. MIT licensed.
 
 Repo and demo: <https://github.com/soyangelromero/Markitdown-for-Everyone>
 
-Install (PyPI pending):
+Install:
 
 ```bash
-pipx install git+https://github.com/soyangelromero/Markitdown-for-Everyone.git
+pipx install markitdown-for-everyone
 ```
 
 I would appreciate feedback on the CLI design and on packaging.

@@ -10,6 +10,7 @@ automatically; review the rules of each community before publishing.
 
 ## Assets
 
+- PyPI: <https://pypi.org/project/markitdown-for-everyone/>
 - Demo GIF: [`docs/demo.gif`](../demo.gif)
 - Repository: <https://github.com/soyangelromero/Markitdown-for-Everyone>
 - Approximate cost from real tests: **0.0002–0.0003 pollen** for a 1-page scanned document
@@ -18,8 +19,7 @@ automatically; review the rules of each community before publishing.
 
 ## Checklist
 
-- [ ] Publish to PyPI first (see [PUBLISHING.md](../PUBLISHING.md)); the install line changes
-      from `pipx install git+...` to `pipx install markitdown-for-everyone`.
+- [x] Published to PyPI: <https://pypi.org/project/markitdown-for-everyone/> (install with `uvx markitdown-for-everyone` or `pipx install markitdown-for-everyone`).
 - [ ] Create the GitHub release and tag (`v0.4.1` or newer).
 - [ ] Record/replace `docs/demo.gif` if the UI changed (`python scripts/generate_demo.py`).
 - [ ] Publish in this order: GitHub release → X/LinkedIn (ES) → Reddit (EN/ES) → Show HN →

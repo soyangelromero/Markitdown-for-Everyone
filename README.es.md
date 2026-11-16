@@ -1,6 +1,7 @@
 # Markitdown-for-Everyone
 
 [![CI](https://github.com/soyangelromero/Markitdown-for-Everyone/actions/workflows/ci.yml/badge.svg)](https://github.com/soyangelromero/Markitdown-for-Everyone/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/markitdown-for-everyone.svg)](https://pypi.org/project/markitdown-for-everyone/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Versión](https://img.shields.io/badge/versi%C3%B3n-0.4.1-blue.svg)](CHANGELOG.md)
@@ -54,15 +55,14 @@ Requiere **Python 3.10+** y conexión a internet para las conversiones con LLM.
 
 ```bash
 # CLI aislada con uv (recomendado)
-uvx --from git+https://github.com/soyangelromero/Markitdown-for-Everyone.git markitdown-for-everyone
+uvx markitdown-for-everyone
 
 # O instálala como herramienta con pipx
-pipx install git+https://github.com/soyangelromero/Markitdown-for-Everyone.git
+pipx install markitdown-for-everyone
 ```
 
-> **La publicación en PyPI está pendiente.** Mientras tanto, instala desde Git como arriba o
-> descarga el wheel de la [última release](https://github.com/soyangelromero/Markitdown-for-Everyone/releases)
-> y ejecuta `pipx install ./markitdown_for_everyone-0.4.1-py3-none-any.whl`.
+También está disponible en [PyPI](https://pypi.org/project/markitdown-for-everyone/) y como
+wheel/sdist adjuntos a la [última release](https://github.com/soyangelromero/Markitdown-for-Everyone/releases).
 
 ### Desde un clon (desarrollo)
 

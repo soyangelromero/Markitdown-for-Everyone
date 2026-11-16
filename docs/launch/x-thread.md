@@ -13,10 +13,10 @@ by page through a vision model. In my tests a 1-page scan cost ~0.0003 pollen.
 3/ It also has a bilingual EN/ES menu, non-interactive flags for scripts, a live model catalog
 (free vs paid) and clear 401/402/429 messages.
 
-4/ Install today (PyPI pending):
+4/ Install today:
 
 ```bash
-uvx --from git+https://github.com/soyangelromero/Markitdown-for-Everyone.git markitdown-for-everyone
+uvx markitdown-for-everyone
 ```
 
 Repo: https://github.com/soyangelromero/Markitdown-for-Everyone
@@ -36,10 +36,10 @@ escaneadas se procesan con OCR página a página. En mis pruebas, una página co
 3/ Además: menú bilingüe ES/EN, flags para automatizar, catálogo de modelos (gratis/pago) y
 mensajes claros de error (401/402/429).
 
-4/ Instalación (PyPI pendiente):
+4/ Instalación:
 
 ```bash
-uvx --from git+https://github.com/soyangelromero/Markitdown-for-Everyone.git markitdown-for-everyone
+uvx markitdown-for-everyone
 ```
 
 Repo: https://github.com/soyangelromero/Markitdown-for-Everyone

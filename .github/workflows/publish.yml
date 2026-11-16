@@ -1,20 +1,19 @@
-﻿name: Publish to PyPI
+name: Publish to PyPI
 
 # This workflow uses PyPI Trusted Publishing (OIDC); no API token is stored in the repo.
-# Before the first run, configure the trusted publisher on PyPI:
-#   https://docs.pypi.org/trusted-publishers/
+# The trusted publisher is configured on PyPI:
 #   PyPI project: markitdown-for-everyone
 #   Owner: soyangelromero
 #   Repository: Markitdown-for-Everyone
 #   Workflow: publish.yml
 #   Environment: pypi
 #
-# After that, either run this workflow manually or uncomment the release trigger.
+# It runs on every published GitHub release, or manually from the Actions tab.
 
 on:
   workflow_dispatch:
-  # release:
-  #   types: [published]
+  release:
+    types: [published]
 
 permissions:
   contents: read

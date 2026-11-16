@@ -23,12 +23,12 @@ What it does:
 
 Demo: https://github.com/soyangelromero/Markitdown-for-Everyone/blob/main/docs/demo.gif
 
-Install (PyPI pending, so from Git for now):
+Install:
 
 ```bash
-uvx --from git+https://github.com/soyangelromero/Markitdown-for-Everyone.git markitdown-for-everyone
+uvx markitdown-for-everyone
 # or
-pipx install git+https://github.com/soyangelromero/Markitdown-for-Everyone.git
+pipx install markitdown-for-everyone
 ```
 
 Repo: https://github.com/soyangelromero/Markitdown-for-Everyone

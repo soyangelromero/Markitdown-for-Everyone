@@ -1,7 +1,7 @@
 # Awesome-list PR drafts
 
-Submit these **after** publishing to PyPI (or at least after the GitHub release exists), so the
-entries have a stable install command. Always follow each list's contribution rules and sort
+PyPI is published (`markitdown-for-everyone`), so these entries can be submitted now; they have a
+stable install command (`pipx install markitdown-for-everyone`). Always follow each list's contribution rules and sort
 alphabetically where required.
 
 ## Candidate lists

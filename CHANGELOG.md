@@ -9,6 +9,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.4.1] — 2026-11-16
 
+### Added
+
+- First PyPI release: `markitdown-for-everyone==0.4.1` published via Trusted Publishing
+  (<https://pypi.org/project/markitdown-for-everyone/>).
+
 ### Fixed
 
 - Specific API error messages (401 invalid key, 402 insufficient pollen, 403

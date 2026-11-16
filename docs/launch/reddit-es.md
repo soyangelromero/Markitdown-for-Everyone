@@ -24,7 +24,7 @@ licencia MIT y Python 3.10+.
 Demo: <https://github.com/soyangelromero/Markitdown-for-Everyone/blob/main/docs/demo.gif>
 
 ```bash
-uvx --from git+https://github.com/soyangelromero/Markitdown-for-Everyone.git markitdown-for-everyone
+uvx markitdown-for-everyone
 ```
 
 Repo: <https://github.com/soyangelromero/Markitdown-for-Everyone>

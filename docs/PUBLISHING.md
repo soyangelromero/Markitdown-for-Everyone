@@ -1,24 +1,48 @@
 # Publishing to PyPI
 
-The package is **not published on PyPI yet**. This document describes the steps to release it
-so `pipx install markitdown-for-everyone` works without cloning the repository.
+**Status:** published ✅ — `markitdown-for-everyone==0.4.1` is live at
+<https://pypi.org/project/markitdown-for-everyone/>.
 
-## Option A — Trusted Publishing (recommended, no token)
+Publishing uses **PyPI Trusted Publishing (OIDC)**: no API token is stored in the repository or
+in GitHub secrets. The pending publisher was registered on PyPI with:
 
-1. Create the project on PyPI if it does not exist yet (the first publish creates it, but the
-   trusted publisher must be configured for a *pending* project):
-   <https://pypi.org/manage/account/publishing/>
-2. Add a trusted publisher with:
-   - **PyPI project name:** `markitdown-for-everyone`
-   - **Owner:** `soyangelromero`
-   - **Repository:** `Markitdown-for-Everyone`
-   - **Workflow name:** `publish.yml`
-   - **Environment name:** `pypi`
-3. Run the **Publish to PyPI** workflow manually from the Actions tab, or uncomment the
-   `release` trigger in `.github/workflows/publish.yml` and publish a GitHub release.
-4. The workflow builds the sdist/wheel and uploads them using OIDC; no secrets are stored.
+| Field | Value |
+|---|---|
+| PyPI project name | `markitdown-for-everyone` |
+| Owner | `soyangelromero` |
+| Repository | `Markitdown-for-Everyone` |
+| Workflow | `publish.yml` |
+| Environment | `pypi` |
 
-## Option B — API token (manual)
+The GitHub environment `pypi` exists in the repository settings. It is intentionally not
+protected with required reviewers, so the workflow runs unattended.
+
+## Publishing a new version
+
+1. Bump `__version__` in `src/markitdown_pollinations/__init__.py` (single source of truth).
+2. Move the `[Unreleased]` entries in `CHANGELOG.md` to the new version and date.
+3. Run the local quality gate:
+   `ruff check . && ruff format --check . && mypy src && pytest -q --cov`.
+4. Commit, tag `vX.Y.Z`, push the tag (`git push origin vX.Y.Z`).
+5. Create the GitHub release: it triggers the **Publish to PyPI** workflow automatically
+   (`.github/workflows/publish.yml` has the `release: published` trigger enabled).
+   You can also run it manually from **Actions → Publish to PyPI → Run workflow**.
+6. Attach the build artifacts to the release for convenience:
+   `python -m build && gh release upload vX.Y.Z dist/* --clobber`.
+7. Verify:
+
+   ```bash
+   uvx markitdown-for-everyone --version
+   # or
+   pipx install markitdown-for-everyone
+   ```
+
+> PyPI does not allow re-uploading the same version. If a release fails after upload, bump the
+> patch version instead of trying to overwrite it.
+
+## Manual fallback (API token)
+
+Only if Trusted Publishing is unavailable:
 
 ```bash
 python -m pip install --upgrade build twine
@@ -28,21 +52,9 @@ python -m twine upload dist/*
 # password: pypi-AgEI...
 ```
 
-## After the first publish
+## Checklist for the README after a release
 
-- Update `README.md` / `README.es.md`: remove the "PyPI publication is pending" notes and
-  replace the Git install one-liners with `pipx install markitdown-for-everyone` and
-  `uvx markitdown-for-everyone`.
-- Add the PyPI badge to both READMEs.
-- Verify the release with `pipx install markitdown-for-everyone` in a clean environment.
-- Create the next GitHub release and attach `dist/*.whl` and `dist/*.tar.gz` as assets
-  (`gh release upload vX.Y.Z dist/*`).
-
-## Versioning checklist
-
-1. Bump `__version__` in `src/markitdown_pollinations/__init__.py` (single source of truth).
-2. Move the `[Unreleased]` entries in `CHANGELOG.md` to the new version and date.
-3. Run the local quality gate: `ruff check . && ruff format --check . && mypy src && pytest -q --cov`.
-4. Commit, tag `vX.Y.Z`, push the tag (`git push origin vX.Y.Z`).
-5. Create the GitHub release with notes and upload the wheel/sdist:
-   `gh release create vX.Y.Z dist/* --title "vX.Y.Z" --notes-file CHANGELOG.md`.
+- [ ] PyPI badge shows the new version (it is dynamic).
+- [ ] Install one-liners use `uvx markitdown-for-everyone` / `pipx install markitdown-for-everyone`.
+- [ ] GitHub release has the matching tag, notes and assets.
+- [ ] `docs/releases/vX.Y.Z.md` notes are consistent with `CHANGELOG.md`.
