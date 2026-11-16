@@ -1,0 +1,73 @@
+name: Bug report
+description: Report a reproducible problem with the converter or CLI
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in as much detail as possible.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including the exact command you ran.
+      placeholder: |
+        1. Ran `markitdown-for-everyone report.pdf`
+        2. Expected ...
+        3. Got ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - Linux
+        - macOS
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.13.7"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Markitdown-for-Everyone version
+      description: Output of `markitdown-for-everyone --version`
+      placeholder: "0.4.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: model
+    attributes:
+      label: Model in use
+      description: The text/vision model selected in your configuration, if known.
+      options:
+        - openai
+        - openai-large
+        - openai-fast
+        - gemini
+        - claude
+        - qwen-vision
+        - deepseek
+        - mistral
+        - glm
+        - Other / not sure
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Output of the command, including `--verbose` or `--debug` logs. Remove API keys before pasting.
+      render: shell
