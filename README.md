@@ -7,12 +7,24 @@
 
 **English** · [Español](README.es.md)
 
-A command-line tool that converts PDFs, images, Office documents, audio and other files
-into Markdown using [MarkItDown](https://github.com/microsoft/markitdown) and the
-[Pollinations API](https://pollinations.ai). Bilingual interface (English/Spanish), an
-interactive menu for humans, and non-interactive flags for scripts.
+**Convert scanned PDFs, images and Office documents to Markdown from your terminal, using a free Pollinations API key.** OCR included, no GPU or Docker required, bilingual (English/Spanish), with an interactive menu and script-friendly flags.
 
-> **Not on PyPI yet.** Install from source with `pip`, `pipx` or `uv`. See [Install](#install).
+![Terminal demo: version, scanned-PDF OCR and live model list](docs/demo.gif)
+
+> Independent open-source project built on top of Microsoft's [MarkItDown](https://github.com/microsoft/markitdown). It is not affiliated with Microsoft. See [Credits](#credits).
+
+## Why this tool?
+
+| | **Markitdown-for-Everyone** | MarkItDown CLI (bare) | Online converters |
+|---|---|---|---|
+| Free Pollinations key, no OpenAI/Azure account needed | ✅ | ❌ (bring your own LLM key) | varies |
+| Scanned PDF OCR without extra setup | ✅ bundled | ⚠️ install/configure `markitdown-ocr` + LLM | ✅ but paid/upload |
+| Bilingual interface and localized OCR prompts | ✅ EN/ES | ❌ English only | varies |
+| Runs locally, no GPU, no Docker, no upload UI | ✅ | ✅ | ❌ files uploaded |
+| Interactive menu **and** non-interactive flags | ✅ | flags only | GUI only |
+| Approximate cost | ~0.0002 pollen per LLM-backed document | depends on provider | subscription |
+
+The goal is not to replace MarkItDown: it wraps it with a zero-setup Pollinations backend, OCR enabled by default, a bilingual UX and a menu that a non-technical user can follow.
 
 ## Features
 
@@ -37,6 +49,22 @@ interactive menu for humans, and non-interactive flags for scripts.
 
 Requires **Python 3.10+** and an internet connection for LLM-backed conversions.
 
+### One-line install
+
+```bash
+# Isolated CLI with uv (recommended)
+uvx --from git+https://github.com/soyangelromero/Markitdown-for-Everyone.git markitdown-for-everyone
+
+# Or install it as a tool with pipx
+pipx install git+https://github.com/soyangelromero/Markitdown-for-Everyone.git
+```
+
+> **PyPI publication is pending.** Until then, install from Git as above, or download the
+> wheel from the [latest release](https://github.com/soyangelromero/Markitdown-for-Everyone/releases)
+> and run `pipx install ./markitdown_for_everyone-0.4.1-py3-none-any.whl`.
+
+### From a clone (development)
+
 ```bash
 git clone https://github.com/soyangelromero/Markitdown-for-Everyone.git
 cd Markitdown-for-Everyone
@@ -49,15 +77,6 @@ python -m venv .venv
 source .venv/bin/activate
 
 pip install -e .
-```
-
-Alternatively, install it as an isolated CLI with [pipx](https://pipx.pypa.io/) or
-[uv](https://docs.astral.sh/uv/):
-
-```bash
-pipx install git+https://github.com/soyangelromero/Markitdown-for-Everyone.git
-# or
-uv tool install git+https://github.com/soyangelromero/Markitdown-for-Everyone.git
 ```
 
 ### Get an API key
@@ -228,6 +247,12 @@ pytest -q --cov
 
 The project targets Python 3.10–3.13. CI runs lint/type checks plus the test suite on
 Ubuntu, Windows and macOS.
+
+The README animation is generated from real CLI output:
+
+```bash
+python scripts/generate_demo.py   # writes docs/demo.gif and docs/demo.png
+```
 
 ### Project structure
 
