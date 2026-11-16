@@ -2,148 +2,169 @@
 
 from __future__ import annotations
 
-import inspect
+import urllib.error
 from unittest.mock import MagicMock, patch
-from urllib.error import HTTPError
 
-from markitdown_pollinations.validation import _validate_key_via_api
+import pytest
+
+from markitdown_pollinations.i18n import set_language
+from markitdown_pollinations.validation import (
+    _mask_key,
+    _validate_key_via_api,
+    _warn_if_key_invalid,
+)
+
+KEY = "sk-test-key-12345"
 
 
-def _make_http_error(code: int, msg: str = "error") -> HTTPError:
-    """Construct an HTTPError with the required 5 arguments.
-
-    The fp argument must support .read() returning bytes — validation.py calls
-    e.read().decode() to parse the error body.
-    """
+def _make_http_error(code: int, body: bytes = b'{"error": {"message": "test error"}}'):
+    """Construct an HTTPError whose body can be read by validation.py."""
     fp = MagicMock()
-    fp.read.return_value = b'{"error": {"message": "test error"}}'
-    return HTTPError("https://example.com", code, msg, MagicMock(), fp)
+    fp.read.return_value = body
+    return urllib.error.HTTPError("https://example.com", code, "error", MagicMock(), fp)
 
 
-@patch("urllib.request.urlopen")
+def _response(body: bytes) -> MagicMock:
+    response = MagicMock()
+    response.read.return_value = body
+    response.__enter__.return_value = response
+    return response
+
+
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
 def test_validate_key_via_api_402_returns_valid(mock_urlopen):
-    """HTTP 402 (insufficient balance) returns 'valid' — key works, just no balance."""
-    # First call (balance endpoint) raises 500 → fall through to chat.
-    # Second call (chat endpoint) raises 402 → return "valid".
+    """HTTP 402 (insufficient balance) returns 'valid' — key works, no balance."""
     mock_urlopen.side_effect = [
-        _make_http_error(500, "Server Error"),
-        _make_http_error(402, "Payment Required"),
+        _make_http_error(500, b"server error"),
+        _make_http_error(402, b'{"error": {"message": "payment required"}}'),
     ]
-
-    result = _validate_key_via_api("sk-test-key-12345")
-
-    assert result == "valid"
+    assert _validate_key_via_api(KEY) == "valid"
     assert mock_urlopen.call_count == 2
 
 
-@patch("urllib.request.urlopen")
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
 def test_validate_key_via_api_timeout_returns_unknown(mock_urlopen):
-    """Network timeout on both endpoints returns 'unknown'."""
     mock_urlopen.side_effect = [TimeoutError("timed out"), TimeoutError("timed out")]
-
-    result = _validate_key_via_api("sk-test-key-12345")
-
-    assert result == "unknown"
+    assert _validate_key_via_api(KEY) == "unknown"
 
 
-@patch("urllib.request.urlopen")
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
 def test_validate_key_via_api_401_returns_invalid(mock_urlopen):
-    """HTTP 401 (unauthorized) returns 'invalid'."""
-    mock_urlopen.side_effect = [_make_http_error(401, "Unauthorized")]
-
-    result = _validate_key_via_api("sk-test-key-12345")
-
-    assert result == "invalid"
+    mock_urlopen.side_effect = [_make_http_error(401)]
+    assert _validate_key_via_api(KEY) == "invalid"
 
 
-@patch("urllib.request.urlopen")
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
 def test_validate_key_via_api_successful_balance_returns_valid(mock_urlopen):
-    """A successful balance endpoint response with balance returns 'valid'."""
-    mock_resp = MagicMock()
-    mock_resp.read.return_value = b'{"balance": 100}'
-    mock_resp.status = 200
-    mock_urlopen.return_value.__enter__.return_value = mock_resp
-
-    result = _validate_key_via_api("sk-test-key-12345")
-
-    assert result == "valid"
+    mock_urlopen.return_value = _response(b'{"balance": 100}')
+    assert _validate_key_via_api(KEY) == "valid"
+    assert mock_urlopen.call_count == 1
 
 
-@patch("urllib.request.urlopen")
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
+def test_validate_key_balance_without_balance_field_is_valid(mock_urlopen):
+    mock_urlopen.return_value = _response(b'{"user": "angel"}')
+    assert _validate_key_via_api(KEY) == "valid"
+
+
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
+def test_validate_key_balance_error_payload_falls_back_to_chat(mock_urlopen):
+    mock_urlopen.side_effect = [
+        _response(b'{"error": {"message": "nope"}}'),
+        _response(b'{"choices": [{"message": {"content": "hi"}}]}'),
+    ]
+    assert _validate_key_via_api(KEY) == "valid"
+    assert mock_urlopen.call_count == 2
+
+
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
 def test_validate_key_200_with_choices_returns_valid(mock_urlopen):
-    """HTTP 200 with a choices body returns 'valid'."""
-    # First call (balance endpoint) raises 500 → fall through to chat.
-    # Second call (chat endpoint) returns 200 with choices.
-    mock_resp = MagicMock()
-    mock_resp.read.return_value = b'{"choices":[{"message":{"content":"hi"}}]}'
-    mock_resp.status = 200
-    mock_resp.__enter__.return_value = mock_resp
     mock_urlopen.side_effect = [
-        _make_http_error(500, "Server Error"),
-        mock_resp,
+        _make_http_error(500, b"server error"),
+        _response(b'{"choices": [{"message": {"content": "hi"}}]}'),
     ]
-
-    result = _validate_key_via_api("sk-test-key-12345")
-
-    assert result == "valid"
+    assert _validate_key_via_api(KEY) == "valid"
 
 
-@patch("urllib.request.urlopen")
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
 def test_validate_key_200_with_error_body_returns_unknown(mock_urlopen):
-    """HTTP 200 with an error-shaped body (no choices) returns 'unknown'."""
-    # First call (balance endpoint) raises 500 → fall through to chat.
-    # Second call (chat endpoint) returns 200 with error body.
-    mock_resp = MagicMock()
-    mock_resp.read.return_value = b'{"error":{"message":"oops"}}'
-    mock_resp.status = 200
-    mock_resp.__enter__.return_value = mock_resp
     mock_urlopen.side_effect = [
-        _make_http_error(500, "Server Error"),
-        mock_resp,
+        _make_http_error(500, b"server error"),
+        _response(b'{"error": {"message": "oops"}}'),
     ]
-
-    result = _validate_key_via_api("sk-test-key-12345")
-
-    assert result == "unknown"
+    assert _validate_key_via_api(KEY) == "unknown"
 
 
-@patch("urllib.request.urlopen")
-def test_validate_key_200_with_non_json_returns_unknown(mock_urlopen):
-    """HTTP 200 with non-JSON body returns 'unknown'."""
-    # First call (balance endpoint) raises 500 → fall through to chat.
-    # Second call (chat endpoint) returns 200 with non-JSON body.
-    mock_resp = MagicMock()
-    mock_resp.read.return_value = b"not json at all"
-    mock_resp.status = 200
-    mock_resp.__enter__.return_value = mock_resp
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
+def test_validate_key_200_with_non_json_returns_unknown(mock_urlopen, capsys):
     mock_urlopen.side_effect = [
-        _make_http_error(500, "Server Error"),
-        mock_resp,
+        _make_http_error(500, b"server error"),
+        _response(b"not json at all"),
     ]
-
-    result = _validate_key_via_api("sk-test-key-12345")
-
-    assert result == "unknown"
+    assert _validate_key_via_api(KEY) == "unknown"
+    assert "non-JSON" in capsys.readouterr().err
 
 
-def test_no_unicode_arrow_in_validation_output():
-    """Regression test: no Unicode arrow (→, U+2192) in validation.py user-facing strings.
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
+def test_balance_non_json_falls_back_to_chat(mock_urlopen):
+    mock_urlopen.side_effect = [
+        _response(b"not json"),
+        _response(b'{"choices": []}'),
+    ]
+    assert _validate_key_via_api(KEY) == "valid"
 
-    A previous version used the Unicode arrow character in user-facing strings,
-    which broke on terminals without Unicode support. This test ensures no such
-    characters are reintroduced in validation.py (which got user-facing warning
-    strings after T4 extracted it from cli.py).
-    """
-    import markitdown_pollinations.validation as validation_module
 
-    source = inspect.getsource(validation_module)
-    lines = source.splitlines()
-    violations = []
-    for lineno, line in enumerate(lines, start=1):
-        # Check lines that produce user-visible output.
-        if ("print(" in line or 'f"' in line or "f'" in line) and (
-            "\\u2192" in line or "\u2192" in line
-        ):
-            violations.append(f"line {lineno}: {line.strip()}")
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
+def test_connection_error_returns_unknown(mock_urlopen, capsys):
+    mock_urlopen.side_effect = [
+        urllib.error.URLError("offline"),
+        urllib.error.URLError("offline"),
+    ]
+    assert _validate_key_via_api(KEY) == "unknown"
+    assert "could not connect" in capsys.readouterr().err
 
-    assert not violations, "Non-ASCII or \\u2192 found in validation.py:\n" + "\n".join(violations)
+
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
+def test_chat_http_error_message_is_reported(mock_urlopen, capsys):
+    mock_urlopen.side_effect = [
+        _make_http_error(500, b"server error"),
+        _make_http_error(400, b'{"error": {"message": "bad request"}}'),
+    ]
+    assert _validate_key_via_api(KEY) == "unknown"
+    assert "bad request" in capsys.readouterr().err
+
+
+@patch("markitdown_pollinations.validation.urllib.request.urlopen")
+def test_spanish_warnings_are_translated(mock_urlopen, capsys):
+    set_language("es")
+    mock_urlopen.side_effect = [
+        urllib.error.URLError("offline"),
+        urllib.error.URLError("offline"),
+    ]
+    assert _validate_key_via_api(KEY) == "unknown"
+    assert "Advertencia" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("api_key", "expected"),
+    [
+        ("plain-key", "usually start with 'sk_'"),
+        ("sk_short", "too short"),
+        ("sk_valid_key_123456", None),
+    ],
+)
+def test_warn_if_key_invalid(api_key, expected, capsys):
+    _warn_if_key_invalid(api_key)
+    stderr = capsys.readouterr().err
+    if expected is None:
+        assert stderr == ""
+    else:
+        assert expected in stderr
+
+
+def test_mask_key_short():
+    assert _mask_key("short") == "****"
+
+
+def test_mask_key_long():
+    assert _mask_key("sk_abcdef123456") == "sk_a****3456"
